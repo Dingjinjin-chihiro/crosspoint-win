@@ -92,6 +92,10 @@ list(FILTER CROSSPOINT_LIB_CPP EXCLUDE REGEX ".*/hal/.*")
 
 # ArduinoJson from PlatformIO libs (if present)
 set(ARDUINO_JSON_ROOT "${CROSSPOINT_ROOT}/.pio/libdeps/default/ArduinoJson")
+if(NOT EXISTS "${ARDUINO_JSON_ROOT}/src/ArduinoJson.h")
+  # PlatformIO has not run: fall back to the vendored single-header copy.
+  set(ARDUINO_JSON_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/ArduinoJson")
+endif()
 if(EXISTS "${ARDUINO_JSON_ROOT}/src/ArduinoJson.h")
   file(GLOB ARDUINO_JSON_SOURCES "${ARDUINO_JSON_ROOT}/src/*.cpp")
   list(APPEND CROSSPOINT_LIB_CPP ${ARDUINO_JSON_SOURCES})

@@ -15,6 +15,7 @@ cross_point/
 ├─ CMakeLists.txt / sim/       # 模拟器源码（SDL2 窗口 480x800 + 虚拟 SD 卡 ./sdcard）
 ├─ Crosspoint/                 # 固件（git submodule，固定在上游 tag 1.0.0）
 ├─ patches/                    # 我们对固件的两处修复，构建前自动 git apply
+├─ third_party/ArduinoJson/    # ArduinoJson 7.4.2 单头文件（固件 CMake 会优先用 PlatformIO 目录，没有则回退到这里）
 ├─ build/                      # 构建产物 crosspoint_emulator.exe + 运行期 DLL
 ├─ sdcard/                     # 虚拟 SD 卡根目录（放书、缓存、阅读进度）
 ├─ tools/msys64/               # 便携工具链：MinGW-w64 GCC 16.2 / CMake 4.5 / Ninja / SDL2 2.32.10
@@ -146,4 +147,5 @@ python scripts\pbm_info.py fb.pbm panel.png
 
 `scripts/emu_nav.ps1` 可向模拟器窗口发送按键（PostMessage，方向键带 extended 标志位，否则 SDL 会
 把方向键解析错），用于无人工干预的回归测试。
+
 

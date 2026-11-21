@@ -54,6 +54,7 @@ python scripts\make_sample_epub.py sdcard
 ├─ CMakeLists.txt / sim/     模拟器源码（SDL2 窗口、虚拟 SD 卡、键盘映射）
 ├─ Crosspoint/               固件（git submodule，固定在上游 tag 1.0.0）
 ├─ patches/                  我们对固件的两处修复（构建前自动 git apply）
+├─ third_party/ArduinoJson/  ArduinoJson 7.4.2 单头文件（免装 PlatformIO）
 ├─ sdcard/                   虚拟 SD 卡根目录
 ├─ scripts/                  示例书生成、按键注入、帧缓冲诊断
 ├─ docs/screenshots/         实测截图
@@ -92,4 +93,5 @@ EPUB 阅读（章节标题、两端对齐、翻页到下一章）· 阅读菜单
 ## 许可
 
 模拟器与固件均为 MIT。本仓库的分支/修改同样以 MIT 发布，原始版权见 `NOTICE`。
+
 
