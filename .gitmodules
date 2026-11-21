@@ -1,0 +1,4 @@
+[submodule "Crosspoint"]
+	path = Crosspoint
+	url = https://github.com/crosspoint-reader/crosspoint-reader.git
+	branch = .

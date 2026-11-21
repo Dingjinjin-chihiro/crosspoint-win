@@ -6,7 +6,7 @@
 
 - 模拟器内核来自 [jonmooreai/Crosspoint-Emulator](https://github.com/jonmooreai/Crosspoint-Emulator)（MIT）
 - 固件来自 [crosspoint-reader](https://github.com/crosspoint-reader/crosspoint-reader)（MIT），以 submodule
-  固定在 `1.0.0` 并带两处修复
+  固定在 tag `1.0.0`，两处修复以补丁形式随仓库携带、构建前自动应用
 
 ![首页](docs/screenshots/00-window.png)
 
@@ -19,7 +19,7 @@ git clone --recursive https://github.com/Dingjinjin-chihiro/crosspoint-win.git
 cd crosspoint-win
 
 setup_toolchain.cmd   :: 首次：下载便携 MSYS2 + MinGW / CMake / Ninja / SDL2（约 5 分钟）
-build.cmd             :: 编译模拟器（约 2–4 分钟）
+build.cmd             :: 取固件 submodule + 打补丁 + 编译（约 3–5 分钟）
 run_emulator.cmd      :: 启动
 ```
 
@@ -52,15 +52,20 @@ python scripts\make_sample_epub.py sdcard
 ```
 .
 ├─ CMakeLists.txt / sim/     模拟器源码（SDL2 窗口、虚拟 SD 卡、键盘映射）
-├─ Crosspoint/               固件（git submodule，指向本组织的 fork）
+├─ Crosspoint/               固件（git submodule，固定在上游 tag 1.0.0）
+├─ patches/                  我们对固件的两处修复（构建前自动 git apply）
 ├─ sdcard/                   虚拟 SD 卡根目录
 ├─ scripts/                  示例书生成、按键注入、帧缓冲诊断
 ├─ docs/screenshots/         实测截图
 ├─ BUILD_NOTES.md            完整构建记录、全部改动与原因
 ├─ setup_toolchain.cmd       安装便携工具链
+├─ prepare_firmware.cmd      拉 submodule + 应用补丁（幂等）
 ├─ build.cmd / run_emulator.cmd
 └─ tools/msys64/             工具链落点（已 gitignore）
 ```
+
+> 只想更新固件到某个上游提交时：`git -C Crosspoint fetch origin <sha> && git -C Crosspoint checkout <sha>`，
+> 然后重新跑 `build.cmd` 看补丁是否还能 `git apply`（不能的话按行号手工改一下，补丁就在 `patches/`）。
 
 ## 为什么固定固件版本
 
@@ -68,12 +73,14 @@ python scripts\make_sample_epub.py sdcard
 新增 `freeink-sdk` 子模块、C++20 等，直接对主干编译会在 `ContentProtection.h`、`Storage` 未声明处失败。
 我们固定到同期的 tag `1.0.0`（2026‑02‑09），其 HAL 与模拟器的 `sim/include` 存根完全对应。
 
-固件在此基础上打了两个补丁（见 `Crosspoint` submodule 的分支 `emulator-1.0.0`）：
+固件在此基础上打了两个补丁（`patches/`，由 `prepare_firmware.cmd` 自动应用）：
 
 1. **修复 use‑after‑free（真实 bug）**：`onGoToReader()` / `onGoToMyLibraryWithPath()` 在
    `exitActivity()` 之后才使用传入的 `const std::string&`，而该字符串通常由即将被销毁的 Activity 持有。
    在 Windows/MinGW 下稳定触发 `0xC0000005`。改为先拷贝再销毁。
 2. `CrossPointState.h` 补 `#include <cstdint>`（设备端靠 Arduino.h 兜底，宿主构建会报错）。
+
+补丁带完整提交信息（作者/说明），需要的话可以直接 `git am patches/*.patch` 拿去自己的 fork 用。
 
 ## 已验证
 
@@ -85,3 +92,4 @@ EPUB 阅读（章节标题、两端对齐、翻页到下一章）· 阅读菜单
 ## 许可
 
 模拟器与固件均为 MIT。本仓库的分支/修改同样以 MIT 发布，原始版权见 `NOTICE`。
+

@@ -12,13 +12,16 @@
 
 ```
 cross_point/
-├─ Crosspoint-Emulator/        # 模拟器（SDL2 窗口 480x800 + 虚拟 SD 卡 ./sdcard）
-│  ├─ build/                   # 构建产物 crosspoint_emulator.exe + 运行期 DLL
-│  └─ sdcard/                  # 虚拟 SD 卡根目录（放书、缓存、阅读进度）
-├─ Crosspoint/                 # Crosspoint 固件源码（被模拟的对象），固定到 tag 1.0.0
+├─ CMakeLists.txt / sim/       # 模拟器源码（SDL2 窗口 480x800 + 虚拟 SD 卡 ./sdcard）
+├─ Crosspoint/                 # 固件（git submodule，固定在上游 tag 1.0.0）
+├─ patches/                    # 我们对固件的两处修复，构建前自动 git apply
+├─ build/                      # 构建产物 crosspoint_emulator.exe + 运行期 DLL
+├─ sdcard/                     # 虚拟 SD 卡根目录（放书、缓存、阅读进度）
 ├─ tools/msys64/               # 便携工具链：MinGW-w64 GCC 16.2 / CMake 4.5 / Ninja / SDL2 2.32.10
 ├─ scripts/                    # 辅助脚本（生成示例书、驱动模拟器、帧缓冲诊断）
 ├─ docs/screenshots/           # 实测截图
+├─ setup_toolchain.cmd         # 安装便携工具链
+├─ prepare_firmware.cmd        # 拉 submodule + 应用补丁（幂等）
 ├─ run_emulator.cmd            # 启动模拟器
 └─ build.cmd                   # 重新编译
 ```
@@ -87,7 +90,8 @@ cmake --build Crosspoint-Emulator/build -j 8
 因此选择与模拟器同期的 **Crosspoint tag 1.0.0（2026-02-09）**，其 HAL 接口与模拟器 `sim/include` 中的
 `SDCardManager`/`HalStorage` 存根完全对应。
 
-当前 `Crosspoint` 工作区就是 `1.0.0` 提交加上下面第 6 节的两处修复。
+本仓库的 `Crosspoint/` 是上游 submodule（gitlink 固定到 `9e04eec`，即 tag 1.0.0），
+两处修复放在 `patches/`，由 `prepare_firmware.cmd` 在编译前自动 `git apply`。
 
 ## 6. 为跑起来做的修改
 
@@ -108,7 +112,7 @@ cmake --build Crosspoint-Emulator/build -j 8
 
 > 调试开关默认关闭，不影响正常运行。
 
-### 6.2 固件侧（Crosspoint 1.0.0）—— 一个真实 bug
+### 6.2 固件侧（patches/，作用于 Crosspoint 1.0.0）—— 一个真实 bug
 
 | 文件 | 修改 | 原因 |
 |------|------|------|
@@ -142,3 +146,4 @@ python scripts\pbm_info.py fb.pbm panel.png
 
 `scripts/emu_nav.ps1` 可向模拟器窗口发送按键（PostMessage，方向键带 extended 标志位，否则 SDL 会
 把方向键解析错），用于无人工干预的回归测试。
+

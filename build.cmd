@@ -12,11 +12,9 @@ if not exist "%BASH%" (
   echo Run setup_toolchain.cmd first.
   exit /b 1
 )
-if not exist "%ROOT%Crosspoint\src\main.cpp" (
-  echo Firmware submodule missing.
-  echo Run: git submodule update --init --recursive
-  exit /b 1
-)
+
+call "%ROOT%prepare_firmware.cmd"
+if errorlevel 1 exit /b 1
 
 "%BASH%" -lc "export PATH=/mingw64/bin:$PATH; export MSYSTEM=MINGW64; ROOT=$(cygpath -u '%ROOT%'); cd \"$ROOT\" || exit 1; cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCROSSPOINT_ROOT=\"$ROOT/Crosspoint\" && cmake --build build -j 8"
 if errorlevel 1 (
