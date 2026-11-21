@@ -7,6 +7,8 @@
 > 用上游移植 PR #6 的新模拟器内核（C++20、直接复用固件 HAL、FreeInk SDK）。
 > `main` 分支仍保留原版模拟器 + 1.0.0 固件，那套更老但链路完全稳定。
 
+📖 **完整产品说明、工作原理、以及「与原版固件的逐项差异」→ [docs/PRODUCT.md](docs/PRODUCT.md)**
+
 ![首页](docs/screenshots/00-window.png)
 
 ## 30 秒跑起来

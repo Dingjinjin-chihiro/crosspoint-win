@@ -333,6 +333,7 @@ Ctrl+S 始终输出面板精确 480×800（走渲染目标）。验证：resize 
 | 设备/触摸配置 | `Crosspoint/freeink-sdk/libs/hardware/BoardConfig/include/BoardConfig.h`（219-260 触摸开关，512 控制器枚举，2263 `ACTIVE`） |
 | CI | `.github/workflows/build.yml` |
 | 调试手册 | `docs/DEBUGGING.md` |
+| 产品说明（是什么/原理/与原版固件的差异） | `docs/PRODUCT.md` |
 
 ---
 
