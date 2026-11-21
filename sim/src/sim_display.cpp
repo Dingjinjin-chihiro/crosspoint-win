@@ -154,6 +154,51 @@ void drawHud(uint8_t* pixels, int pitch, int width, int height) {
   (void)width;
 }
 
+// The panel is 1-bit (and, for the gray path, 2-bit + a 1-bit mask), bit-packed.
+// Expanding a byte into its eight pixel luminances with a table removes the
+// per-pixel shift/mask/branch (and the inversion xor) from the inner loop. The
+// rotation still forces pitch-strided writes, but the bit decode is gone.
+const uint8_t* expandLut(bool inverted) {
+  static uint8_t normal[256 * 8];
+  static uint8_t invert[256 * 8];
+  static bool built = false;
+  if (!built) {
+    for (int byte = 0; byte < 256; ++byte) {
+      for (int b = 0; b < 8; ++b) {
+        const uint8_t on = (byte & (0x80 >> b)) ? 255u : 0u;
+        normal[byte * 8 + b] = on;
+        invert[byte * 8 + b] = 255u - on;
+      }
+    }
+    built = true;
+  }
+  return inverted ? invert : normal;
+}
+
+struct GrayBitLuts {
+  uint8_t bw[256 * 8];   // 4 when the bw bit is set
+  uint8_t msb[256 * 8];  // 2 when the msb bit is set
+  uint8_t lsb[256 * 8];  // 1 when the lsb bit is set
+};
+
+const GrayBitLuts& grayBitLuts() {
+  static GrayBitLuts luts;
+  static bool built = false;
+  if (!built) {
+    for (int byte = 0; byte < 256; ++byte) {
+      for (int b = 0; b < 8; ++b) {
+        const uint8_t m = 0x80 >> b;
+        const bool on = (byte & m) != 0;
+        luts.bw[byte * 8 + b] = on ? 4u : 0u;
+        luts.msb[byte * 8 + b] = on ? 2u : 0u;
+        luts.lsb[byte * 8 + b] = on ? 1u : 0u;
+      }
+    }
+    built = true;
+  }
+  return luts;
+}
+
 void render_bw_to_texture(const uint8_t* buf) {
   if (!g_renderer || !g_texture || !buf) return;
   uint8_t* pixels = nullptr;
@@ -163,19 +208,20 @@ void render_bw_to_texture(const uint8_t* buf) {
   const int H = static_cast<int>(EInkDisplay::DISPLAY_HEIGHT);
   const int W = static_cast<int>(EInkDisplay::DISPLAY_WIDTH);
   const int WB = static_cast<int>(EInkDisplay::DISPLAY_WIDTH_BYTES);
+  const uint8_t* lut = expandLut(g_inverted);
 
   for (int y = 0; y < H; y++) {
     const int rotX = H - 1 - y;
     const size_t rowBase = static_cast<size_t>(y) * WB;
 
     for (int byteIdx = 0; byteIdx < WB; byteIdx++) {
-      const uint8_t byte = buf[rowBase + byteIdx];
+      const uint8_t* row = lut + static_cast<size_t>(buf[rowBase + byteIdx]) * 8;
       const int xBase = byteIdx * 8;
       const int remaining = W - xBase;
       const int count = remaining < 8 ? remaining : 8;
 
       for (int b = 0; b < count; b++) {
-        const uint8_t v = ((byte & (0x80 >> b)) != 0) != g_inverted ? 255 : 0;
+        const uint8_t v = row[b];
         const int rotY = xBase + b;
         const size_t off = static_cast<size_t>(rotY) * static_cast<size_t>(pitch) + static_cast<size_t>(rotX) * 3;
         pixels[off + 0] = v;
@@ -201,23 +247,22 @@ void render_gray_to_texture(const uint8_t* bw, const uint8_t* lsb, const uint8_t
   const int H = static_cast<int>(EInkDisplay::DISPLAY_HEIGHT);
   const int W = static_cast<int>(EInkDisplay::DISPLAY_WIDTH);
   const int WB = static_cast<int>(EInkDisplay::DISPLAY_WIDTH_BYTES);
+  const GrayBitLuts& gl = grayBitLuts();
 
   for (int y = 0; y < H; y++) {
     const int rotX = H - 1 - y;
     const size_t rowBase = static_cast<size_t>(y) * WB;
 
     for (int byteIdx = 0; byteIdx < WB; byteIdx++) {
-      const uint8_t bwByte = bw[rowBase + byteIdx];
-      const uint8_t lsbByte = lsb[rowBase + byteIdx];
-      const uint8_t msbByte = msb[rowBase + byteIdx];
+      const uint8_t* bwRow = gl.bw + static_cast<size_t>(bw[rowBase + byteIdx]) * 8;
+      const uint8_t* lsbRow = gl.lsb + static_cast<size_t>(lsb[rowBase + byteIdx]) * 8;
+      const uint8_t* msbRow = gl.msb + static_cast<size_t>(msb[rowBase + byteIdx]) * 8;
       const int xBase = byteIdx * 8;
       const int remaining = W - xBase;
       const int count = remaining < 8 ? remaining : 8;
 
       for (int b = 0; b < count; b++) {
-        const uint8_t mask = 0x80 >> b;
-        const int lutIdx = ((bwByte & mask) ? 4 : 0) | ((msbByte & mask) ? 2 : 0) | ((lsbByte & mask) ? 1 : 0);
-        const uint8_t v = grayLut[lutIdx];
+        const uint8_t v = grayLut[bwRow[b] | msbRow[b] | lsbRow[b]];
         const int rotY = xBase + b;
         const size_t off = static_cast<size_t>(rotY) * static_cast<size_t>(pitch) + static_cast<size_t>(rotX) * 3;
         pixels[off + 0] = v;
