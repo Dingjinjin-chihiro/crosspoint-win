@@ -1,0 +1,46 @@
+# Build artifacts
+build/
+build-*/
+*.o
+*.d
+*.a
+*.so
+*.dylib
+*.obj
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+
+# Local toolchain (downloaded by setup_toolchain.cmd; ~1.4 GB)
+tools/
+_dl/
+
+# Emulator state and caches on the virtual SD card
+sdcard/.crosspoint/
+*.pbm
+*.ppm
+
+# Reference screenshots/scratch
+docs/screenshots/live.png
+
+# macOS / IDE
+.DS_Store
+.AppleDouble
+.LSOverride
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Compiled binaries
+crosspoint_emulator
+*.exe
+
+# Temporary files
+*.tmp
+*.log

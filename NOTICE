@@ -1,0 +1,34 @@
+Crosspoint for Windows
+======================
+
+This repository packages a working Windows build of the Crosspoint e-reader
+emulator together with the Crosspoint firmware it runs.
+
+Upstream projects
+-----------------
+
+* Crosspoint Emulator
+  https://github.com/jonmooreai/Crosspoint-Emulator
+  Copyright (c) the Crosspoint Emulator contributors
+  License: MIT (see docs/UPSTREAM-README.md for upstream documentation)
+
+* Crosspoint firmware
+  https://github.com/crosspoint-reader/crosspoint-reader
+  Copyright (c) 2025 Dave Allie
+  License: MIT
+  Pinned to tag 1.0.0, plus two local fixes carried in the fork
+  Dingjinjin-chihiro/crosspoint-reader, branch emulator-1.0.0.
+
+Local changes in this repository
+--------------------------------
+
+Emulator side (see BUILD_NOTES.md for the full list):
+  * portable MinGW-w64 build support (mkdir/realpath shims, forced standard
+    includes, String 64-bit overloads)
+  * optional framebuffer/texture dump switches for diagnostics
+
+Firmware side (branch emulator-1.0.0):
+  * fixes a use-after-free in onGoToReader()/onGoToMyLibraryWithPath()
+  * adds a missing <cstdint> include in CrossPointState.h
+
+Everything here is distributed under the MIT license, matching upstream.
