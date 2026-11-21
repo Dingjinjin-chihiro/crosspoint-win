@@ -34,7 +34,9 @@ sdcard/Benchmark Book.epub
 .DS_Store
 .AppleDouble
 .LSOverride
-.vscode/
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
 .idea/
 *.swp
 *.swo
@@ -47,5 +49,8 @@ crosspoint_emulator
 # Temporary files
 *.tmp
 *.log
+# Python bytecode cache (make_bench_book.py imports make_sample_epub)
+__pycache__/
+*.pyc
 # Generated CMake scripts, but keep our own cmake/ helpers when needed
 !cmake/

@@ -1,7 +1,7 @@
 # 进度交接：Crosspoint for Windows
 
 > 写给下一个会话。读完这一份就能直接继续，不需要翻聊天记录。
-> 最后更新：2026-11-22 17:4x（本地时区 +08:00）
+> 最后更新：2026-11-22 01:5x（本地时区 +08:00）
 
 ---
 
@@ -266,11 +266,14 @@ Ctrl+S 始终输出面板精确 480×800（走渲染目标）。验证：resize 
 
 **红线（保留）**：不要为了优化改坏 `sim_display` 的旋转映射（`rotX/rotY` 一旦错位，画面会旋转 90°）。
 
-### 5.4 调试能力增强（用户也提到"能进行调试"）
-- 加 `.vscode/launch.json` + `.vscode/tasks.json`（F5 直接断点），gdb 路径 `tools\msys64\mingw64\bin\gdb.exe`
-- 加 `build_debug.cmd`，别让用户手敲 cmake
-- 可选：模拟器内叠加调试 HUD（FPS/当前 Activity/heap 假值），只在 `CROSSPOINT_EMULATOR_HUD=1` 时显示
-- 可选：把按键/触摸注入做成"脚本回放"（录制 SDL 事件 → 重放），便于 UI 回归
+### 5.4 调试能力增强 —— ✅ 基础项完成
+
+- ✅ `.vscode/launch.json` + `.vscode/tasks.json`：F5 直接断点，`miDebuggerPath` 用 `${workspaceFolder}`
+  相对路径指向 `tools/msys64/mingw64/bin/gdb.exe`（`.vscode/` 已对这两个文件解忽略）
+- ✅ `build_debug.cmd`：一键 RelWithDebInfo 构建到 `build-debug/`，实测 295 目标 + gdb 能看到
+  `main_sim.cpp:93` 与 `HalGPIO::update` 的行号/符号
+- ⏳ 可选：调试 HUD（FPS/Activity/heap 假值，`CROSSPOINT_EMULATOR_HUD=1`）
+- ⏳ 可选：SDL 事件录制/回放（UI 回归）
 
 ---
 
