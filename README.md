@@ -9,6 +9,8 @@
   以 submodule 指向我们的 fork [Dingjinjin-chihiro/crosspoint-reader](https://github.com/Dingjinjin-chihiro/crosspoint-reader) 分支 `emulator-1.0.0`
   （上游 tag `1.0.0` + 两处修复）；同一修复也以补丁形式放在 `patches/`
 
+[![build](https://github.com/Dingjinjin-chihiro/crosspoint-win/actions/workflows/build.yml/badge.svg)](https://github.com/Dingjinjin-chihiro/crosspoint-win/actions/workflows/build.yml)
+
 ![首页](docs/screenshots/00-window.png)
 
 ## 30 秒跑起来
@@ -47,6 +49,12 @@ run_emulator.cmd      :: 启动
 ```bat
 python scripts\make_sample_epub.py sdcard
 ```
+
+## 直接下载构建好的程序
+
+不想装工具链的话，可以在 [Actions](https://github.com/Dingjinjin-chihiro/crosspoint-win/actions/workflows/build.yml) 里挑一次成功的 run，下载 `crosspoint-emulator-windows` artifact（exe + 4 个运行期 DLL）。
+解压后把 exe 和 DLL 放在同一目录，并在同级建一个 `sdcard/` 放书即可运行。
+
 
 ## 目录结构
 
