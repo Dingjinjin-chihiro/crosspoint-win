@@ -25,6 +25,8 @@ sdcard/.crosspoint/
 
 # Reference screenshots/scratch
 docs/screenshots/live.png
+# Runtime captures written by Ctrl+S / the scripted touch runner
+screenshots/
 
 # macOS / IDE
 .DS_Store

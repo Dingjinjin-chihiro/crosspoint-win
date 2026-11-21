@@ -2,6 +2,7 @@
 #include <EInkDisplay.h>
 #include <HalDisplay.h>
 
+#include "sim_input.h"
 #include "sim_spi_bus.h"
 
 #include <SDL.h>
@@ -350,15 +351,72 @@ void save_screenshot() {
 }
 }  // namespace
 
+bool sim_display_screenshot(void) {
+  if (!g_renderer || !g_texture) return false;
+  save_screenshot();
+  return true;
+}
+
 bool sim_display_pump_events(void) {
+  // Pointer input shares this loop: see sim_input.h. The window is not resizable,
+  // but its client size is read every frame so the panel mapping stays exact if
+  // the platform scales it.
+  int clientW = 0;
+  int clientH = 0;
+  if (g_window) SDL_GetWindowSize(g_window, &clientW, &clientH);
+
   SDL_Event e;
   while (SDL_PollEvent(&e)) {
     if (e.type == SDL_QUIT) return false;
+    switch (e.type) {
+      case SDL_MOUSEMOTION:
+        sim_gpio_on_pointer(SIM_POINTER_MOVE, e.motion.x, e.motion.y, clientW, clientH);
+        break;
+      case SDL_MOUSEBUTTONDOWN:
+      case SDL_MOUSEBUTTONUP:
+        // The emulated panel is single-contact: only the primary button is a finger.
+        if (e.button.button == SDL_BUTTON_LEFT) {
+          sim_gpio_on_pointer(e.type == SDL_MOUSEBUTTONDOWN ? SIM_POINTER_DOWN : SIM_POINTER_UP, e.button.x, e.button.y,
+                              clientW, clientH);
+        }
+        break;
+      default:
+        break;
+    }
     // Buttons are read through SDL_GetKeyboardState, so consuming key events here does not
     // interfere with them. S is not bound to any button.
     if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_s && (e.key.keysym.mod & (KMOD_GUI | KMOD_CTRL)) &&
         e.key.repeat == 0) {
       save_screenshot();
+    }
+    // Touch gesture hotkeys: aim with the pointer, press to deliver a standard
+    // gesture whose timing the emulator controls. See sim_input.h.
+    if (e.type == SDL_KEYDOWN && e.key.repeat == 0) {
+      switch (e.key.keysym.sym) {
+        case SDLK_F1:
+          sim_gpio_on_gesture_key(SIM_GESTURE_TAP);
+          break;
+        case SDLK_F2:
+          sim_gpio_on_gesture_key(SIM_GESTURE_DOUBLE_TAP);
+          break;
+        case SDLK_F3:
+          sim_gpio_on_gesture_key(SIM_GESTURE_LONG_PRESS);
+          break;
+        case SDLK_F4:
+          sim_gpio_on_gesture_key(SIM_GESTURE_SWIPE_LEFT);
+          break;
+        case SDLK_F5:
+          sim_gpio_on_gesture_key(SIM_GESTURE_SWIPE_RIGHT);
+          break;
+        case SDLK_F6:
+          sim_gpio_on_gesture_key(SIM_GESTURE_SWIPE_UP);
+          break;
+        case SDLK_F7:
+          sim_gpio_on_gesture_key(SIM_GESTURE_SWIPE_DOWN);
+          break;
+        default:
+          break;
+      }
     }
   }
   return true;

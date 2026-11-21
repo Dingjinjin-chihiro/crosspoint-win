@@ -1,7 +1,7 @@
 # 进度交接：Crosspoint for Windows
 
 > 写给下一个会话。读完这一份就能直接继续，不需要翻聊天记录。
-> 最后更新：2026-11-22 00:5x（本地时区 +08:00）
+> 最后更新：2026-11-22 17:4x（本地时区 +08:00）
 
 ---
 
@@ -9,7 +9,7 @@
 
 Crosspoint 电子书固件（**上游主干 HEAD `ca1a8c1`，2026-11-21**）已经能在 Windows 上用 SDL2 模拟器跑起来，
 **源码级可调试**（gdb 断点已实测命中），仓库在 `Dingjinjin-chihiro/crosspoint-win` 的 `latest-firmware` 分支，
-CI 全绿。下一步是**界面美化 + 代码优化 + 调试能力增强 + 触摸输入**。
+CI 全绿。**触摸输入已通**（鼠标 + 手势热键 + 可复现脚本三条通道，见 5.1）。下一步是**界面美化 + 代码优化**。
 
 ---
 
@@ -151,9 +151,45 @@ powershell -File C:\Users\DINGJINJIN\Downloads\cross_point\scripts\upgrade_nav.p
 
 ## 5. 下一阶段任务（用户明确要求）
 
-### 5.1 触摸输入（优先级最高，落点已探明）
+### 5.1 触摸输入 —— ✅ 已完成（2026-11-22）
 
-**好消息**：固件已经有完整的触摸抽象，模拟器只需要把鼠标喂进去，不用改固件 UI。
+**做了什么**（详见 `docs/DEBUGGING.md` 第 5 节）
+
+| 文件 | 改动 |
+|---|---|
+| `CMakeLists.txt` | 强制 `FREEINK_CAP_TOUCH=1`（不加 `-DFREEINK_DEVICE_X4PRO`：换设备 profile 会连带改按键布局与侧键语义） |
+| `sim/src/sim_gpio.cpp` | 触摸状态机（阈值与 SDK `InputManager` 一致：tap 28 px、release-slop 59 px、swipe 60 px/700 ms、长按 500 ms）+ suppress 闩锁；11 个 `HalGPIO` 触摸接口全部落地；新增**手势注入引擎**（脚本 + 热键共用同一个 `pointerEvent()` 入口） |
+| `sim/include/sim_input.h` | 新文件：指针/手势钩子的接口 |
+| `sim/src/sim_display.cpp` | 唯一那条 SDL 事件泵把鼠标事件转给触摸层，并把 F1–F7 绑成手势热键 |
+| `sim/include/sim_display.h`、`sim/src/sim_display.cpp` | 暴露 `sim_display_screenshot()`，让脚本里的 `shot` 步骤能把截图对齐到动作 |
+| `scripts/emu_touch.ps1` | 新脚本：真鼠标注入（tap/long/swipe）+ `fkey:N` 手势热键，用完恢复光标位置 |
+| `.gitignore` | 忽略运行期 `screenshots/` |
+
+**坐标系统**：脚本与热键都用**逻辑竖屏像素**（x 0..479、y 0..799，和面板截图一一对应），
+内部按显示旋转的逆变换换成 800×480 面板坐标再归一化，`GfxRenderer::tapToLogical()` 转回逻辑坐标。
+
+**三条通道**
+1. **真鼠标**——移动+左键即手指；给人用最直观。
+2. **手势热键**——鼠标只负责坐标，F1 tap / F2 double / F3 long(700 ms) / F4–F7 四向滑。
+   时序不进宿主事件队列，所以不会被系统卡顿改成拖动。
+3. **`CROSSPOINT_TOUCH_SCRIPT`**——`wait/shot/tap/double/long/swipe`，启动后 400 ms 起按绝对时间执行。
+   **这是唯一可复现的验收方式**。
+
+**已实测（截图 + 日志都在）**
+
+| 场景 | 证据 |
+|---|---|
+| 点列表行开书 | `[ACT] Exiting activity: Home → Entering activity: Library`，再 `Library → EpubReader` |
+| 阅读器左滑翻页 | `Chapter 2 — Pages That Remember`（1/1 74%）→ `Chapter 3 — On Turning`（1/1 100%） |
+| 顶部下滑开工具栏 | `[ACT] Entering activity: FrontlightPanel`，截图为月亮/刷新/字号/触摸四个图标 |
+| 长按（热键 F3） | held=701 ms，`moved=0/0`，按下 501 ms 时 `Entering activity: ClipSelection`（选词 Clip/Bookmark 弹窗），**在手指抬起之前就触发**——符合 SDK 契约 |
+
+**宿主侧已知限制**（踩过，写下来免得重踩）
+- SDL 在按下时 `SetCapture()`，Windows 随后补发一条带**真实光标位置**的 `WM_MOUSEMOVE`。
+  用 `PostMessage` 纯合成点击（光标不在窗口里）时这条补发会被判成拖动 → 请用真鼠标或热键/脚本。
+
+**当时的落点分析（保留，供对照）；下面的"待做"已不适用**
+原来固件就已经有完整的触摸抽象，模拟器只需要把值喂进去，不用改固件 UI。
 
 **编译开关**
 - `FREEINK_CAP_TOUCH` 由所选设备决定：`BoardConfig.h:219-224`，可用 `-DFREEINK_CAP_TOUCH=1` 强制打开

@@ -252,6 +252,11 @@ target_compile_definitions(crosspoint_emulator PRIVATE
   MAX_WIDTH=3072
   PNG_MAX_BUFFERED_PIXELS=16416
   FREEINK_DEVICE_X4=1
+  # The emulator feeds SDL mouse input into HalGPIO as a capacitive touch panel.
+  # The capability flag is forced on rather than switching to a touch-board
+  # profile: an X4 Pro profile would also change button layout and side-button
+  # semantics that the keyboard path depends on.
+  FREEINK_CAP_TOUCH=1
   PROGMEM=
   EINK_DISPLAY_SINGLE_BUFFER_MODE=1
   CROSSPOINT_VERSION="${CROSSPOINT_FIRMWARE_VERSION}-emu"
