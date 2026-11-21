@@ -7,6 +7,7 @@
 #include <HardwareSerial.h>
 #include <SDCardManager.h>
 #include <SdFat.h>
+#include "sim_action.h"
 #include "sim_display.h"
 #include "sim_trace.h"
 
@@ -122,6 +123,9 @@ int main(int argc, char** argv) {
 
   printf("Crosspoint emulator: running setup() then loop(). Close window to exit.\n");
   setup();
+  // Direct semantic actions (CROSSPOINT_EMULATOR_ACTIONS): armed after setup so
+  // the first one lands on a live UI.
+  sim_action_init();
 
   // Single main thread: one prewarm step per frame, then events and loop (matches device).
   while (true) {
@@ -131,6 +135,9 @@ int main(int argc, char** argv) {
     if (!sim_display_pump_events()) {
       break;
     }
+    // Dispatch any due direct actions before the firmware frame runs: navigation
+    // methods queue a pending transition that this frame then performs.
+    sim_action_pump();
     loop();
   }
 

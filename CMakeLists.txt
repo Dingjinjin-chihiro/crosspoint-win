@@ -68,6 +68,7 @@ set(SIM_SOURCES
   sim/src/sim_display.cpp
   sim/src/sim_gpio.cpp
   sim/src/sim_panel.cpp
+  sim/src/sim_action.cpp
   sim/src/sim_trace.cpp
   sim/src/sim_storage.cpp
   sim/src/sim_spi_bus.cpp

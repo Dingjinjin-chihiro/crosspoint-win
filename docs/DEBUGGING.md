@@ -290,6 +290,85 @@ python scripts\trace_analyze.py trace.log build-trace\crosspoint_emulator.exe ^
 代价：全量插桩约慢 10x（开机 2.3s vs 0.2s），trace.log 很大（3M 条 ≈ 58MB），且 std::chrono/tuple
 这类模板噪声多（用 `grep -v std::` 过滤）。追踪构建是独立目录 `build-trace/`，正常构建不受影响。
 
+### 8.3 直接语义动作（绕过手势分类）
+
+触摸/鼠标注入走的是「坐标 → 手势分类 → 命中判定」这条链。如果你的目的已经明确（"我要打开这本书"，
+而不是"我要在这个坐标点一下"），没必要让分类器去猜——直接用**语义动作**调用固件自己的 API：
+
+```bat
+set CROSSPOINT_EMULATOR_ACTIONS=wait 1200; library; wait 1500; open /The Quiet Shelf.epub; wait 2500; turn; wait 1200; home
+build\crosspoint_emulator.exe
+```
+
+实测日志（**全程没有鼠标/触摸事件**）：
+
+```
+[ACTION] 5 action(s) scheduled
+[ACTION] library              -> [ACT] Entering activity: Library
+[ACTION] open /The Quiet Shelf.epub -> [ACT] Entering activity: EpubReader
+[ACTION] turn                 -> accepted -> [ERS] Rendered page
+[ACTION] turn                 -> accepted -> [ERS] Rendered page
+[ACTION] home                 -> [ACT] Entering activity: Home
+```
+
+支持的动作（全部直接调 `ActivityManager` / reader 的 API）：
+
+| 动作 | 调用 | 说明 |
+|---|---|---|
+| `home` / `library` / `settings` / `plugins` / `usb` / `join` | `goHome` / `goToLibrary` / `goToSettings` / `goToPlugins` / `goToUsbDrive` / `goToJoinNetwork` | 这些只**排队一个 pendingAction**，绝不会被输入层吞掉 |
+| `browser [路径]` | `goToFileBrowser` | |
+| `open <书籍路径>` | `goToReader` | 等价于"在列表里选中这本书并按确认"的结果 |
+| `turn [-]` | `remoteTurn(forward,false)` | 阅读器翻页；`-` 表示反向 |
+| `chapter [-]` | `remoteTurn(forward,true)` | 整章跳过 |
+| `menu` | `remoteShortcut(true)` | 打开阅读菜单 |
+| `pop` | `popActivity` | 返回上一屏 |
+| `refresh` | `handleForcedRefresh` | 强制整屏刷新 |
+| `msg <文本>` | `goToFullScreenMessage` | 全屏提示（调试打点用） |
+| `sleep` / `boot` | `goToSleep` / `goToBoot` | |
+| `wait <ms>` | — | 时序间隔 |
+
+为什么不直接调 `injectRemoteClick`（语义按键）？因为 `MappedInputManager::update()` 每帧开头会
+`remoteInput.reset()`，从循环外注入的按键会被下一帧清掉；而上面这些导航/阅读器 API 要么排队
+pendingAction、要么直接调 reader 方法，**不会丢**。`turn`/`chapter`/`menu` 的返回值会打印
+`accepted / rejected`，rejected 说明当时不在已渲染的阅读器里（等一帧再试即可）。
+
+### 8.4 真单步调试（真正的 step in/over/out）
+
+**模拟器上本来就是真单步**——它是本机 x86-64 原生代码，gdb 的 `step`/`next`/`stepi`/`finish`/
+`until`/`watch` 全部可用，VS Code F5 同样。唯一要注意的是固件是 `while(true){ loop(); }` 结构，
+用断点 + `finish` 跳过循环体，别硬 `step` 过整个主循环。
+
+**真机上要真单步，必须走 JTAG**（不是串口）。好消息是 **Xteink X4 用的 ESP32-C3 自带 USB
+Serial/JTAG**，一根 USB-C 线就能硬件调试，不需要额外的 JTAG 探针：
+
+```ini
+; Crosspoint/platformio.ini（或 platformio.local.ini，避免污染上游）
+[env:debug]
+extends = env:default
+build_type = debug          ; -Og -g3，行号准确
+debug_tool = esp-builtin    ; ESP32-C3/S3 内置 USB-JTAG
+debug_init_break = tbreak setup
+```
+
+```bat
+pio run -e debug              :: 编 debug 版
+pio debug -e debug            :: VSCode 里启动调试（断点/单步/变量/调用栈）
+:: 或纯命令行：
+pio debug -e debug --interface=gdb -- -ex "target extended-remote :3333"
+```
+
+要点与坑：
+
+- **必须 `-Og`**（`build_type = debug` 会带）。`-O2/-Os` 下函数被内联/重排，`next` 会跳得莫名其妙。
+- **不要用串口调试**：串口只能看日志。JTAG 会**暂停 CPU**，此时面板/看门狗都停——单步慢是正常的。
+- **硬件断点数量有限**（RISC-V 的触发单元少），必要时用软件断点（gdb 默认会往 flash 里插）。
+- **FreeRTOS 多任务**：`info threads` 能看到任务；单步只停当前任务，其它任务在你停住时不跑（JTAG halt 整个核）。
+- **USB 口被 OpenOCD 占用**时串口日志看不了；需要日志就先用 `monitor` 或改回普通 USB 模式。
+- **设备上做"直接语义动作"**：没有模拟器可以 call 进去，两条路——
+  1. 加一个**调试串口命令**（`Serial` 收到 `open /book.epub\n` → 调 `activityManager.goToReader`），
+     用 `#if CROSSPOINT_DEBUG_ACTIONS` 包起来，只在调试构建启用（改固件要走 fork 分支，别混进 `main`）；
+  2. 或者 JTAG + gdb `call`（C++ 方法带 `std::string` 参数时很难写，推荐第 1 种）。
+
 ---
 
 ## 不能做什么（别被"能跑"误导）

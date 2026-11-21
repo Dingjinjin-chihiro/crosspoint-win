@@ -283,6 +283,11 @@ Ctrl+S 始终输出面板精确 480×800（走渲染目标）。验证：resize 
   `sim_trace.cpp` hook（`CROSSPOINT_TRACE=1` → trace.log E/X 记录 + ASLR 锚点）+
   `scripts/trace_analyze.py`（addr2line 解析 + 调用次数/自耗时/调用树）。实测开机+点 Library ~3.4s
   出 294 万条记录、3175 个函数。断点调试沿用 gdb/VS Code F5 + tracepoint 配方。详见 DEBUGGING.md 第 8 节。
+- ✅ **直接语义动作**（绕过手势分类）：`CROSSPOINT_EMULATOR_ACTIONS` 按名字直接调
+  `ActivityManager`/reader API（home/library/open/turn/chapter/menu/pop/refresh…），无需坐标、
+  不经分类器。实测 library→open→turn→turn→home 全程无鼠标事件。文档见 DEBUGGING.md 8.3。
+- ✅ **真单步调试方案**：模拟器侧 gdb 原生 step/next/finish/watch；真机侧文档化 ESP32-C3 内置
+  USB-JTAG + OpenOCD/pio debug（`debug_tool = esp-builtin`、`-Og` 构建、注意事项）。见 DEBUGGING.md 8.4。
 - ⏳ 可选：SDL 事件录制/回放（UI 回归）
 - ⏳ 未做：5.2 的固件主题——见 5.2 说明（1-bit 面板无颜色、Lyra 已较精致、无安全可验证的美化点）
 
