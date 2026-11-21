@@ -251,18 +251,20 @@ Ctrl+S 始终输出面板精确 480×800（走渲染目标）。验证：resize 
 - `.gitignore` 忽略派生的 `sdcard/Benchmark Book.epub`
 - `docs/DEBUGGING.md` 新增第 7 节：基准怎么跑 + 基线结论
 
-**基线结论（大书，翻 8 页）**
+**基线结论（大书，翻 8 页）——已复核修正**
 
 | 指标 | 数值 | 判断 |
 |---|---|---|
-| 模拟器上屏（`bw_render`/`gray_render`） | 0-2 ms | **不是热点**，无需 SIMD/批量 |
-| 翻页 | 10-23 ms/页 | 大头是 `gray_display` 的 vsync present（5-17ms），不是渲染 |
-| 图书馆首帧 | ~1.7 s | 缩略图生成（真热点） |
-| 阅读器开书（首章） | ~3.3 s | 首章分页/排版（真热点） |
+| 模拟器上屏（`bw_render`/`gray_render`） | 0 ms / 0-1 ms | **不是热点**；已做 256 项查表、无分支（`d741ea2`），无可测提速 |
+| 翻页 | 10-23 ms/页 | 大头是 `gray_display` 的 vsync present（6-17ms），不是渲染 |
+| 图书馆首帧 | ~2 ms | 不是热点 |
+| 阅读器开书 | ~51 ms | EPUB 载入 ~16ms + 首页分页 ~31ms，不是热点 |
 
-**结论**：`render_bw_to_texture` 这个「热点候选」被基准**证伪**，不做优化（避免无意义 churn）。
-真正耗时在**固件侧**的缩略图预生成 + EPUB 首章分页缓存，在 `Crosspoint/src`，属 fork 的
-`emulator-latest` 分支范畴——要在那边另开分支改，别混进 `main`。
+> 修正：早前把「图书馆 ~1.7s」「开书 ~3.3s」误判为缩略图/分页热点——实为 `[GFX] Time` 的
+> `start_ms` 跨 activity 时把脚本 wait 算进去的假象（见 DEBUGGING.md 第 7 节的坑）。
+
+**结论**：`render_bw_to_texture` 热点候选已证伪并关闭；模拟器无值得优化的热点，翻页延迟本质是
+60Hz vsync present。真正的耗时（若有）在固件侧，属 fork 分支范畴。
 
 **红线（保留）**：不要为了优化改坏 `sim_display` 的旋转映射（`rotX/rotY` 一旦错位，画面会旋转 90°）。
 

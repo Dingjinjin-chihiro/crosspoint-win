@@ -225,14 +225,18 @@ python scripts\bench_gfx.py build\emu-bench.log
 
 | 指标 | 数值 | 说明 |
 |---|---|---|
-| 模拟器纹理上屏 | `bw_render=0-1ms`、`gray_render=1-2ms` | **不是热点**，逐像素渲染 384K 像素本就 <2ms |
-| 翻页 | 10-23ms/页 | 大头是 `gray_display`（5-17ms，垂直同步 present 等待），不是渲染 |
-| 图书馆首帧 | ~1.7s | 含索引（25ms）+ 每本书的**缩略图生成**（读 EPUB 解析 cover） |
-| 阅读器开书 | ~3.3s（首章） | **首章分页/排版**，之后每页才 ~20ms |
+| 模拟器纹理上屏 | `bw_render=0ms`、灰度上屏 0-1ms | **不是热点**（`render_bw_to_texture` 已做 256 项查表、无分支） |
+| 翻页 | 10-23ms/页 | 大头是 `gray_display`（6-17ms，垂直同步 present 等待），不是渲染 |
+| 图书馆首帧 | ~2ms | 索引 ~25ms、首帧渲染 ~2ms |
+| 阅读器开书（进 activity → 首页） | ~51ms | EPUB 载入 ~16ms + 首页分页渲染 ~31ms |
 
-所以 PROGRESS 里列的 `render_bw_to_texture`「热点候选」被基准**证伪**了——不该为它做 SIMD/批量。
-真正的时间花在**固件侧**：缩略图预生成、EPUB 首章分页缓存。这两项在 `Crosspoint/src`（fork 的
-`emulator-latest` 分支），不属于模拟器仓库，要在那边另开分支改，别混进 `main`。
+**⚠️ 一个容易误读的坑**：`[GFX] Time` 的 `start_ms` 是全局的，跨 activity 时会把脚本等待、
+EPUB 载入等间隙一并算进去（例如图书馆的 `GFX Time=1737ms` 其实是「Home 清屏 → 图书馆上屏」跨越了
+脚本的 wait，不是渲染耗时）。**测渲染要用 `[ERS] Page render` 分解，或「activity 进入 → 首页」的时间差。**
+
+结论：PROGRESS 里的 `render_bw_to_texture`「热点候选」被基准**证伪**并已关闭（做了无分支查表优化，
+但它是亚毫秒级，无可测提速）；缩略图、首章分页也**不是**热点（开书 ~51ms）。模拟器当前没有值得
+优化的热点，翻页延迟本质是 60Hz 垂直同步的 present 等待。
 
 ---
 
