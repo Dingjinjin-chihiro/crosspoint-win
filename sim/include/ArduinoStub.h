@@ -116,10 +116,14 @@ class SerialStub : public Print {
   String readStringUntil(char terminator);
   size_t write(uint8_t c) override {
     putchar(static_cast<char>(c));
+    // Unbuffered: when stdout is redirected to a pipe or file the C runtime would
+    // hold the log until exit, and the emulator is normally killed rather than closed.
+    std::fflush(stdout);
     return 1;
   }
   size_t write(const uint8_t* buf, size_t size) override {
     for (size_t i = 0; i < size; i++) putchar(static_cast<char>(buf[i]));
+    std::fflush(stdout);
     return size;
   }
   size_t printf(const char* fmt, ...) __attribute__((format(printf, 2, 3))) {
@@ -128,7 +132,10 @@ class SerialStub : public Print {
     char buf[512];
     int n = vsnprintf(buf, sizeof(buf), fmt, args);
     va_end(args);
-    if (n > 0) fwrite(buf, 1, static_cast<size_t>(n), stdout);
+    if (n > 0) {
+      fwrite(buf, 1, static_cast<size_t>(n), stdout);
+      std::fflush(stdout);
+    }
     return static_cast<size_t>(n);
   }
 };

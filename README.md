@@ -34,6 +34,17 @@ ArduinoJson 已内置在 `third_party/`，不需要下载。
 | Backspace 或 Esc | 返回 |
 | P | 电源键 |
 
+## 调试
+
+这是**能调源码的模拟器**，不是只能看的 demo：
+
+- **gdb 断点/单步/调用栈**：用 `RelWithDebInfo` 编一份 `build-debug`，可直接 `break FileBrowserActivity::activateSelected`、看 `path` 参数、`bt` 出完整调用链（实测命中）
+- **固件分级日志**：`[millis] [LEVEL] [MODULE] message` 直接走 stdout（已加 `fflush`，重定向到文件不会丢）
+- **面板级截图**：运行中 `Ctrl+S` 写 `screenshots/*.bmp`
+- **脚本化按键**：`scripts/upgrade_nav.ps1` 用 `PostMessage` 注入方向/确认键，可做回归
+
+细节、命令和**局限性**（网络是桩、内存数字是假的、没有面板时序）见 [docs/DEBUGGING.md](docs/DEBUGGING.md)。
+
 ## 放书
 
 `.epub` / `.txt` / `.xtc` 放进 `sdcard/`，重启后在 **Browse Files** 里可见。
