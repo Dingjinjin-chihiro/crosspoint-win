@@ -274,6 +274,9 @@ Ctrl+S 始终输出面板精确 480×800（走渲染目标）。验证：resize 
   `main_sim.cpp:93` 与 `HalGPIO::update` 的行号/符号
 - ✅ 调试 HUD：`CROSSPOINT_EMULATOR_HUD=1` 左上角叠加 FPS 读数 + 每秒 `[HUD] fps=N` 日志
 - ✅ 截图转 PNG：`scripts/shots_to_png.ps1`（BMP → PNG，便于直接查看）
+- ✅ **手势面板**（操作面板）：独立窗口 7 个按钮（TAP/DBL/HOLD/四向滑），点按钮即按固定时序
+  触发手势（tap 80ms、double 2×80ms、long 700ms、swipe 260ms）；按下即触发（规避 SDL SetCapture 漂移）；
+  `emu_touch.ps1` 加 `panel:N` 动作可脚本化验证。实测 7 手势全部命中（含左滑翻页、长按开 ClipSelection）。
 - ⏳ 可选：SDL 事件录制/回放（UI 回归）
 - ⏳ 未做：5.2 的固件主题——见 5.2 说明（1-bit 面板无颜色、Lyra 已较精致、无安全可验证的美化点）
 

@@ -3,6 +3,7 @@
 #include <HalDisplay.h>
 
 #include "sim_input.h"
+#include "sim_panel.h"
 #include "sim_spi_bus.h"
 
 #include <SDL.h>
@@ -22,6 +23,7 @@ static const int WINDOW_HEIGHT = static_cast<int>(EInkDisplay::DISPLAY_WIDTH);
 static SDL_Window* g_window = nullptr;
 static SDL_Renderer* g_renderer = nullptr;
 static SDL_Texture* g_texture = nullptr;
+static uint32_t g_mainWindowId = 0;
 // 480x800 render target used to capture the panel at its exact size no matter
 // how large the window is scaled.
 static SDL_Texture* g_target = nullptr;
@@ -264,10 +266,13 @@ bool sim_display_init(void) {
          g_target ? "enabled" : "disabled, window-sized fallback");
   g_hudEnabled = std::getenv("CROSSPOINT_EMULATOR_HUD") != nullptr;
   if (g_hudEnabled) printf("[SIM] debug HUD enabled (CROSSPOINT_EMULATOR_HUD=1)\n");
+  g_mainWindowId = SDL_GetWindowID(g_window);
+  if (!sim_panel_init()) printf("[SIM] gesture panel failed to open\n");
   return true;
 }
 
 void sim_display_shutdown(void) {
+  sim_panel_shutdown();
   if (g_target) {
     SDL_DestroyTexture(g_target);
     g_target = nullptr;
@@ -515,8 +520,21 @@ bool sim_display_pump_events(void) {
   SDL_Event e;
   while (SDL_PollEvent(&e)) {
     if (e.type == SDL_QUIT) return false;
+    // The gesture panel is a second SDL window; give it first look at its own
+    // pointer/window events (it ignores the main window's).
+    switch (e.type) {
+      case SDL_MOUSEMOTION:
+      case SDL_MOUSEBUTTONDOWN:
+      case SDL_MOUSEBUTTONUP:
+      case SDL_WINDOWEVENT:
+        sim_panel_handle_event(&e);
+        break;
+      default:
+        break;
+    }
     switch (e.type) {
       case SDL_MOUSEMOTION: {
+        if (e.motion.windowID != g_mainWindowId) break;
         int lx = 0;
         int ly = 0;
         windowToPanelLogical(e.motion.x, e.motion.y, lx, ly);
@@ -525,6 +543,7 @@ bool sim_display_pump_events(void) {
       }
       case SDL_MOUSEBUTTONDOWN:
       case SDL_MOUSEBUTTONUP:
+        if (e.button.windowID != g_mainWindowId) break;
         // The emulated panel is single-contact: only the primary button is a finger.
         if (e.button.button == SDL_BUTTON_LEFT) {
           int lx = 0;

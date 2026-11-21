@@ -61,6 +61,7 @@ public class EmuTouch {
   [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint msg, IntPtr w, IntPtr l);
   [DllImport("user32.dll")] public static extern uint MapVirtualKey(uint code, uint mapType);
   [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr a, int x, int y, int cx, int cy, uint flags);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
   [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
   [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X, Y; }
 }
@@ -89,6 +90,22 @@ $cb = [EmuTouch+EnumWindowsProc]{
 }
 [EmuTouch]::EnumWindows($cb, [IntPtr]::Zero) | Out-Null
 if ($script:hwnd -eq [IntPtr]::Zero) { Write-Host "WINDOW NOT FOUND"; exit 3 }
+
+# The gesture panel is a second window ("Gesture Panel - ...").
+$script:panelHwnd = [IntPtr]::Zero
+$pcb = [EmuTouch+EnumWindowsProc]{
+  param($h, $l)
+  $wpid = 0
+  [EmuTouch]::GetWindowThreadProcessId($h, [ref]$wpid) | Out-Null
+  if ($wpid -eq $targetPid) {
+    $sb = New-Object System.Text.StringBuilder 256
+    [EmuTouch]::GetWindowText($h, $sb, 256) | Out-Null
+    if ($sb.ToString() -like "*Gesture Panel*") { $script:panelHwnd = $h }
+  }
+  return $true
+}
+[EmuTouch]::EnumWindows($pcb, [IntPtr]::Zero) | Out-Null
+if ($script:panelHwnd -eq [IntPtr]::Zero) { Write-Host "PANEL WINDOW NOT FOUND"; exit 4 }
 
 $cr = New-Object EmuTouch+RECT
 [EmuTouch]::GetClientRect($script:hwnd, [ref]$cr) | Out-Null
@@ -174,6 +191,22 @@ foreach ($raw in ($Actions -split ';')) {
       Start-Sleep -Milliseconds 40
       [EmuTouch]::mouse_event($LEFTDOWN, 0, 0, 0, [UIntPtr]::Zero)
       Start-Sleep -Milliseconds 70
+      [EmuTouch]::mouse_event($LEFTUP, 0, 0, 0, [UIntPtr]::Zero)
+    }
+    'panel' {
+      # click button N (0..6) in the gesture panel: 0=TAP 1=DBL 2=HOLD 3=<- 4=-> 5=up 6=down
+      $idx = $args[0]
+      $bx = 6 + $idx * 56          # margin 6, button 52, gap 4
+      $p = New-Object EmuTouch+POINT
+      $p.X = $bx + 26
+      $p.Y = 6 + 22
+      [EmuTouch]::ClientToScreen($script:panelHwnd, [ref]$p) | Out-Null
+      [EmuTouch]::SetForegroundWindow($script:panelHwnd) | Out-Null
+      Start-Sleep -Milliseconds 100
+      [EmuTouch]::SetCursorPos($p.X, $p.Y) | Out-Null
+      Start-Sleep -Milliseconds 40
+      [EmuTouch]::mouse_event($LEFTDOWN, 0, 0, 0, [UIntPtr]::Zero)
+      Start-Sleep -Milliseconds 60
       [EmuTouch]::mouse_event($LEFTUP, 0, 0, 0, [UIntPtr]::Zero)
     }
     'resize' {

@@ -98,6 +98,25 @@ BMP 转 PNG（便于直接查看）：`powershell -NoProfile -ExecutionPolicy By
 打一行 `[HUD] fps=N`）。它是纯模拟器侧叠加，固件看不到。注意这里的 FPS 是「屏幕重绘次数/秒」：
 e-ink 静态画面不重绘，所以空闲时是 0，只有固件真正刷屏时才会涨——这本身也是有用的观测。
 
+## 5.5 手势面板（操作面板）
+
+启动时会在屏幕左上角开一个独立的 **Gesture Panel** 窗口，7 个按钮：
+
+| 按钮 | 动作 | 时序（由模拟器保证，鼠标抖动不影响） |
+|---|---|---|
+| TAP | 点按 | 80 ms |
+| DBL | 双击 | 两次 80 ms，间隔 150 ms |
+| HOLD | 长按 | 700 ms（按下 500 ms 时触发长按事件） |
+| < / > / ^ / v | 左/右/上/下滑 | 260 ms，8 段插值 |
+
+用法：**把鼠标移到主窗口的目标位置（只悬停不点）**，再点面板上的按钮——手势就在那个位置、
+按上面的固定时序触发。这跟 F1–F7 热键等价，但更直观；也是 `CROSSPOINT_TOUCH_SCRIPT`
+之外又一条稳定时序的触发通道。按钮是「按下即触发」（SDL 按下时会 SetCapture，导致抬起事件
+坐标漂到窗口外，所以不依赖抬起坐标）。
+
+日志会打 `[PANEL] button N '标签' fired`，随后是 `[TOUCH] inject gesture #N at (x,y)` 与
+`release ... held=...ms`。脚本化验证用 `scripts/emu_touch.ps1` 的 `panel:N` 动作（0=TAP…6=下滑）。
+
 ```
 [SHOT] screenshots/crosspoint-20261122-004012.bmp (480x800)
 ```
