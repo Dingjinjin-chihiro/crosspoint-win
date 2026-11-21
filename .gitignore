@@ -13,7 +13,6 @@ CMakeCache.txt
 CMakeFiles/
 cmake_install.cmake
 Makefile
-*.cmake
 
 # Local toolchain (downloaded by setup_toolchain.cmd; ~1.4 GB)
 tools/
@@ -44,3 +43,5 @@ crosspoint_emulator
 # Temporary files
 *.tmp
 *.log
+# Generated CMake scripts, but keep our own cmake/ helpers when needed
+!cmake/
