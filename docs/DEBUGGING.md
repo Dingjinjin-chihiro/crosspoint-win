@@ -92,6 +92,11 @@ CMake 里已定义 `ENABLE_SERIAL_LOG=1`、`LOG_LEVEL=2`，固件各处 `LOG_ERR
 
 运行中按 **Ctrl+S**（macOS 上 Cmd+S），会在**工作目录**下写 `screenshots/crosspoint-<时间戳>.bmp`：
 它通过渲染目标抓取，**永远是面板原始 480×800**，与窗口缩放、边框、系统 DPI 无关。适合做 UI 回归对比。
+BMP 转 PNG（便于直接查看）：`powershell -NoProfile -ExecutionPolicy Bypass -File scripts\shots_to_png.ps1`。
+
+**调试 HUD**：设 `CROSSPOINT_EMULATOR_HUD=1` 启动，面板左上角叠加一个 FPS 读数（每秒向 stdout
+打一行 `[HUD] fps=N`）。它是纯模拟器侧叠加，固件看不到。注意这里的 FPS 是「屏幕重绘次数/秒」：
+e-ink 静态画面不重绘，所以空闲时是 0，只有固件真正刷屏时才会涨——这本身也是有用的观测。
 
 ```
 [SHOT] screenshots/crosspoint-20261122-004012.bmp (480x800)

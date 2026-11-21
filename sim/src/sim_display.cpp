@@ -33,6 +33,15 @@ static int g_scale = 1;
 static int g_panelOffX = 0;
 static int g_panelOffY = 0;
 
+// Debug HUD (CROSSPOINT_EMULATOR_HUD=1): a tiny FPS readout drawn in the panel's
+// top-left corner and echoed to stdout once a second. Purely a presentation
+// overlay on the emulator side; the firmware never sees it.
+static bool g_hudEnabled = false;
+static int g_hudFps = 0;
+static unsigned int g_hudFrameMs = 0;
+static unsigned long g_hudFrames = 0;
+static unsigned long g_hudWindowStart = 0;
+
 namespace {
 // Panel-side output inversion (HalDisplay::setInverted); the framebuffer itself stays normal.
 bool g_inverted = false;
@@ -64,6 +73,20 @@ void presentPanel() {
   const SDL_Rect dst = {g_panelOffX, g_panelOffY, WINDOW_WIDTH * g_scale, WINDOW_HEIGHT * g_scale};
   SDL_RenderCopy(g_renderer, g_texture, nullptr, &dst);
   SDL_RenderPresent(g_renderer);
+
+  if (g_hudEnabled) {
+    ++g_hudFrames;
+    const unsigned long now = SDL_GetTicks();
+    if (g_hudWindowStart == 0) g_hudWindowStart = now;
+    const unsigned long elapsed = now - g_hudWindowStart;
+    if (elapsed >= 1000) {
+      g_hudFps = static_cast<int>((g_hudFrames * 1000) / elapsed);
+      g_hudFrames = 0;
+      g_hudWindowStart = now;
+      printf("[HUD] fps=%d\n", g_hudFps);
+      fflush(stdout);
+    }
+  }
 }
 
 // Map a window (client) pixel back to the 480x800 logical panel pixel it lands
@@ -74,6 +97,59 @@ void windowToPanelLogical(int winX, int winY, int& lx, int& ly) {
   const int py = (winY - g_panelOffY) / g_scale;
   lx = px < 0 ? 0 : (px >= WINDOW_WIDTH ? WINDOW_WIDTH - 1 : px);
   ly = py < 0 ? 0 : (py >= WINDOW_HEIGHT ? WINDOW_HEIGHT - 1 : py);
+}
+
+// 3x5 digit glyphs, one byte per row, MSB = leftmost pixel. Small enough to
+// draw directly into the RGB24 texture without a font dependency.
+static const uint8_t kDigits[10][5] = {
+    {0b111, 0b101, 0b101, 0b101, 0b111},  // 0
+    {0b010, 0b110, 0b010, 0b010, 0b111},  // 1
+    {0b111, 0b001, 0b111, 0b100, 0b111},  // 2
+    {0b111, 0b001, 0b111, 0b001, 0b111},  // 3
+    {0b101, 0b101, 0b111, 0b001, 0b001},  // 4
+    {0b111, 0b100, 0b111, 0b001, 0b111},  // 5
+    {0b111, 0b100, 0b111, 0b101, 0b111},  // 6
+    {0b111, 0b001, 0b010, 0b010, 0b010},  // 7
+    {0b111, 0b101, 0b111, 0b101, 0b111},  // 8
+    {0b111, 0b101, 0b111, 0b001, 0b111},  // 9
+};
+
+void hudDrawDigit(uint8_t* pixels, int pitch, int x0, int y0, int digit) {
+  const int s = 2;  // scale: each glyph pixel becomes 2x2
+  for (int row = 0; row < 5; ++row) {
+    const uint8_t bits = kDigits[digit][row];
+    for (int col = 0; col < 3; ++col) {
+      if ((bits & (0b100 >> col)) == 0) continue;
+      for (int dy = 0; dy < s; ++dy) {
+        for (int dx = 0; dx < s; ++dx) {
+          const int px = x0 + col * s + dx;
+          const int py = y0 + row * s + dy;
+          uint8_t* p = pixels + static_cast<size_t>(py) * pitch + static_cast<size_t>(px) * 3;
+          p[0] = 0;
+          p[1] = 0;
+          p[2] = 0;
+        }
+      }
+    }
+  }
+}
+
+// Draw the FPS readout (up to 3 digits) in the panel's top-left corner.
+void drawHud(uint8_t* pixels, int pitch, int width, int height) {
+  if (!g_hudEnabled) return;
+  (void)height;
+  // Keep it off the exact corner edge so the first digit is easy to read.
+  const int x0 = 3;
+  const int y0 = 3;
+  int value = g_hudFps;
+  if (value < 0) value = 0;
+  if (value > 999) value = 999;
+  int digits[3] = {value / 100 % 10, value / 10 % 10, value % 10};
+  int leading = (value >= 100) ? 0 : (value >= 10 ? 1 : 2);
+  for (int i = leading; i < 3; ++i) {
+    hudDrawDigit(pixels, pitch, x0 + (i - leading) * (3 * 2 + 2), y0, digits[i]);
+  }
+  (void)width;
 }
 
 void render_bw_to_texture(const uint8_t* buf) {
@@ -107,6 +183,7 @@ void render_bw_to_texture(const uint8_t* buf) {
     }
   }
 
+  drawHud(pixels, pitch, WINDOW_WIDTH, WINDOW_HEIGHT);
   SDL_UnlockTexture(g_texture);
   presentPanel();
 }
@@ -148,6 +225,7 @@ void render_gray_to_texture(const uint8_t* bw, const uint8_t* lsb, const uint8_t
     }
   }
 
+  drawHud(pixels, pitch, WINDOW_WIDTH, WINDOW_HEIGHT);
   SDL_UnlockTexture(g_texture);
   presentPanel();
 }
@@ -184,6 +262,8 @@ bool sim_display_init(void) {
   }
   printf("[SIM] render target %s (panel-exact screenshots %s)\n", g_target ? "available" : "unavailable",
          g_target ? "enabled" : "disabled, window-sized fallback");
+  g_hudEnabled = std::getenv("CROSSPOINT_EMULATOR_HUD") != nullptr;
+  if (g_hudEnabled) printf("[SIM] debug HUD enabled (CROSSPOINT_EMULATOR_HUD=1)\n");
   return true;
 }
 

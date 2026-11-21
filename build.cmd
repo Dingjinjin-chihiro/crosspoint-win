@@ -17,7 +17,7 @@ if errorlevel 1 exit /b 1
 
 REM Image decoders (PNGdec/JPEGDEC/AnimatedGIF) are fetched by CMake on the first
 REM configure. ArduinoJson comes from third_party\, so no download is needed for it.
-"%BASH%" -lc "export PATH=/mingw64/bin:$PATH; export MSYSTEM=MINGW64; ROOT=$(cygpath -u '%ROOT%'); cd \"$ROOT\" || exit 1; cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCROSSPOINT_ROOT=\"$ROOT/Crosspoint\" && cmake --build build -j 8"
+"%BASH%" -lc "export PATH=/mingw64/bin:$PATH; export MSYSTEM=MINGW64; ROOT=$(cygpath -u '%ROOT%'); cd \"$ROOT\" || exit 1; cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCROSSPOINT_ROOT=\"$ROOT/Crosspoint\" && cmake --build build -j 12"
 if errorlevel 1 (
   echo Build failed.
   exit /b 1

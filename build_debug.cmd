@@ -15,7 +15,7 @@ if not exist "%BASH%" (
 call "%ROOT%prepare_firmware.cmd"
 if errorlevel 1 exit /b 1
 
-"%BASH%" -lc "export PATH=/mingw64/bin:$PATH; export MSYSTEM=MINGW64; ROOT=$(cygpath -u '%ROOT%'); cd \"$ROOT\" || exit 1; cmake -S . -B build-debug -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCROSSPOINT_ROOT=\"$ROOT/Crosspoint\" && cmake --build build-debug -j 8"
+"%BASH%" -lc "export PATH=/mingw64/bin:$PATH; export MSYSTEM=MINGW64; ROOT=$(cygpath -u '%ROOT%'); cd \"$ROOT\" || exit 1; cmake -S . -B build-debug -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCROSSPOINT_ROOT=\"$ROOT/Crosspoint\" && cmake --build build-debug -j 12"
 if errorlevel 1 (
   echo Build failed.
   exit /b 1

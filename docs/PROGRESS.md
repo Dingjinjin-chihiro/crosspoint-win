@@ -272,8 +272,10 @@ Ctrl+S 始终输出面板精确 480×800（走渲染目标）。验证：resize 
   相对路径指向 `tools/msys64/mingw64/bin/gdb.exe`（`.vscode/` 已对这两个文件解忽略）
 - ✅ `build_debug.cmd`：一键 RelWithDebInfo 构建到 `build-debug/`，实测 295 目标 + gdb 能看到
   `main_sim.cpp:93` 与 `HalGPIO::update` 的行号/符号
-- ⏳ 可选：调试 HUD（FPS/Activity/heap 假值，`CROSSPOINT_EMULATOR_HUD=1`）
+- ✅ 调试 HUD：`CROSSPOINT_EMULATOR_HUD=1` 左上角叠加 FPS 读数 + 每秒 `[HUD] fps=N` 日志
+- ✅ 截图转 PNG：`scripts/shots_to_png.ps1`（BMP → PNG，便于直接查看）
 - ⏳ 可选：SDL 事件录制/回放（UI 回归）
+- ⏳ 未做：5.2 的固件主题——见 5.2 说明（1-bit 面板无颜色、Lyra 已较精致、无安全可验证的美化点）
 
 ---
 
