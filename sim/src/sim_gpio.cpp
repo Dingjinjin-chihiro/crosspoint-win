@@ -280,6 +280,16 @@ void pushSwipe(const unsigned long at, const float x1, const float y1, const flo
   pushStep(at + dur, 3, x2, y2);
 }
 
+// The duration is optional and may be written with a comma or a space
+// ("swipe 1,2 3,4,300" or "swipe 1,2 3,4 300"). %*d skips the four required
+// coordinates so only the trailing value is read.
+int parseSwipeDuration(const char* cmd) {
+  int dur = 0;
+  if (std::sscanf(cmd, " swipe %*d , %*d %*d , %*d , %d", &dur) == 1) return dur;
+  if (std::sscanf(cmd, " swipe %*d , %*d %*d , %*d %d", &dur) == 1) return dur;
+  return 0;
+}
+
 // Applies every step that is due, oldest first, then drops the applied prefix.
 void runInjectSteps(const unsigned long now) {
   if (!g_scriptParsed) {
@@ -319,15 +329,17 @@ void runInjectSteps(const unsigned long now) {
           logicalToPanel(static_cast<float>(x1), static_cast<float>(y1), px, py);
           pushLongPress(at, px, py, static_cast<unsigned long>(arg < 1 ? kInjectLongPressMs : arg));
           LOG_DBG("TOUCH", "script long-press (%d,%d) %dms", x1, y1, arg < 1 ? 0 : arg);
-        } else if (std::sscanf(cmd, " swipe %d , %d %d , %d , %d", &x1, &y1, &x2, &y2, &arg) >= 4) {
+        } else if (std::sscanf(cmd, " swipe %d , %d %d , %d", &x1, &y1, &x2, &y2) == 4) {
           float sx = 0.0f;
           float sy = 0.0f;
           float ex = 0.0f;
           float ey = 0.0f;
           logicalToPanel(static_cast<float>(x1), static_cast<float>(y1), sx, sy);
           logicalToPanel(static_cast<float>(x2), static_cast<float>(y2), ex, ey);
-          pushSwipe(at, sx, sy, ex, ey, arg > 0 ? static_cast<unsigned long>(arg) : kInjectSwipeMs);
-          LOG_DBG("TOUCH", "script swipe (%d,%d)->(%d,%d) %dms", x1, y1, x2, y2, arg);
+          const int dur = parseSwipeDuration(cmd);
+          const unsigned long swipeMs = dur > 0 ? static_cast<unsigned long>(dur) : kInjectSwipeMs;
+          pushSwipe(at, sx, sy, ex, ey, swipeMs);
+          LOG_DBG("TOUCH", "script swipe (%d,%d)->(%d,%d) %lums", x1, y1, x2, y2, swipeMs);
         } else {
           LOG_DBG("TOUCH", "script: ignoring '%s'", cmd);
           continue;
