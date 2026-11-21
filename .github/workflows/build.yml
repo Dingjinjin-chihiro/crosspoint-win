@@ -39,6 +39,7 @@ jobs:
             mingw-w64-x86_64-ninja
             mingw-w64-x86_64-SDL2
             mingw-w64-x86_64-pkgconf
+            mingw-w64-x86_64-python
 
       # The submodule already carries both fixes; patches only apply when the
       # submodule is pointed back at upstream 1.0.0. Keep this idempotent.
@@ -89,3 +90,4 @@ jobs:
           name: crosspoint-emulator-windows
           path: dist/*
           retention-days: 30
+

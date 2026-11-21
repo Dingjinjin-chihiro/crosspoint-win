@@ -33,13 +33,20 @@ if(NOT SDL2_FOUND)
     "    extract it, build and install, then: cmake -DSDL2_ROOT=/path/to/SDL2-build ..")
 endif()
 
-# Pre-build: generate HTML headers if Crosspoint src exists
+# Pre-build: generate the firmware web UI headers (src/network/html/*.generated.h).
+# These are produced by the firmware's own script and are required to compile the
+# web server activity, so fail loudly instead of letting the build fail later.
 if(EXISTS "${CROSSPOINT_ROOT}/scripts/build_html.py")
   execute_process(
     COMMAND "${CMAKE_COMMAND}" -E env "PYTHONPATH=" python3 "${CROSSPOINT_ROOT}/scripts/build_html.py"
     WORKING_DIRECTORY "${CROSSPOINT_ROOT}"
-    OUTPUT_QUIET
-  )
+    OUTPUT_QUIET ERROR_QUIET RESULT_VARIABLE _html_gen_result)
+  if(NOT EXISTS "${CROSSPOINT_ROOT}/src/network/html/FilesPageHtml.generated.h")
+    message(FATAL_ERROR
+      "Firmware web UI headers are missing and could not be generated "
+      "(python3 exit code ${_html_gen_result}). Install Python 3 "
+      "(on MSYS2: mingw-w64-x86_64-python) and re-run CMake.")
+  endif()
 endif()
 
 # Sim HAL and stubs (include stub impls for OTA/HTTP so we don't compile real network code)
