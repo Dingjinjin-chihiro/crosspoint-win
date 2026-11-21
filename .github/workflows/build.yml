@@ -34,15 +34,20 @@ jobs:
             mingw-w64-x86_64-SDL2
             mingw-w64-x86_64-pkgconf
 
-      - name: Apply firmware patches
+      # The submodule already carries both fixes; patches only apply when the
+      # submodule is pointed back at upstream 1.0.0. Keep this idempotent.
+      - name: Apply firmware patches (skipped when already present)
         run: |
           set -e
           cd "$GITHUB_WORKSPACE/Crosspoint"
-          head_sha=$(git rev-parse HEAD)
-          echo "firmware: $head_sha"
+          echo "firmware: $(git rev-parse HEAD) ($(git rev-parse --abbrev-ref HEAD))"
           for p in "$GITHUB_WORKSPACE"/patches/*.patch; do
-            echo "applying $(basename "$p")"
-            git apply "$p"
+            if git apply --reverse --check "$p" >/dev/null 2>&1; then
+              echo "already applied: $(basename "$p")"
+            else
+              git apply "$p"
+              echo "applied: $(basename "$p")"
+            fi
           done
           git --no-pager diff --stat
 
@@ -74,3 +79,4 @@ jobs:
           name: crosspoint-emulator-windows
           path: dist/*
           retention-days: 30
+

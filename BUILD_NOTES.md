@@ -13,7 +13,7 @@
 ```
 cross_point/
 ├─ CMakeLists.txt / sim/       # 模拟器源码（SDL2 窗口 480x800 + 虚拟 SD 卡 ./sdcard）
-├─ Crosspoint/                 # 固件（git submodule，固定在上游 tag 1.0.0）
+├─ Crosspoint/                 # 固件（git submodule，我们自己的 fork，分支 emulator-1.0.0）
 ├─ patches/                    # 我们对固件的两处修复，构建前自动 git apply
 ├─ third_party/ArduinoJson/    # ArduinoJson 7.4.2 单头文件（固件 CMake 会优先用 PlatformIO 目录，没有则回退到这里）
 ├─ build/                      # 构建产物 crosspoint_emulator.exe + 运行期 DLL
@@ -91,8 +91,9 @@ cmake --build Crosspoint-Emulator/build -j 8
 因此选择与模拟器同期的 **Crosspoint tag 1.0.0（2026-02-09）**，其 HAL 接口与模拟器 `sim/include` 中的
 `SDCardManager`/`HalStorage` 存根完全对应。
 
-本仓库的 `Crosspoint/` 是上游 submodule（gitlink 固定到 `9e04eec`，即 tag 1.0.0），
-两处修复放在 `patches/`，由 `prepare_firmware.cmd` 在编译前自动 `git apply`。
+本仓库的 `Crosspoint/` submodule 指向我们的 fork（分支 `emulator-1.0.0`，基于上游 tag 1.0.0
+加两处修复，gitlink `00e9b90`）。同一修复也以补丁形式放在 `patches/`，`prepare_firmware.cmd`
+和 CI 都会先检查是否已应用，因此把 submodule 指回上游 1.0.0 也能一键构建。
 
 ## 6. 为跑起来做的修改
 
@@ -147,5 +148,6 @@ python scripts\pbm_info.py fb.pbm panel.png
 
 `scripts/emu_nav.ps1` 可向模拟器窗口发送按键（PostMessage，方向键带 extended 标志位，否则 SDL 会
 把方向键解析错），用于无人工干预的回归测试。
+
 
 

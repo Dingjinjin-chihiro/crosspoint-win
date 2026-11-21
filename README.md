@@ -5,8 +5,9 @@
 一起固化下来，克隆即可复现。
 
 - 模拟器内核来自 [jonmooreai/Crosspoint-Emulator](https://github.com/jonmooreai/Crosspoint-Emulator)（MIT）
-- 固件来自 [crosspoint-reader](https://github.com/crosspoint-reader/crosspoint-reader)（MIT），以 submodule
-  固定在 tag `1.0.0`，两处修复以补丁形式随仓库携带、构建前自动应用
+- 固件来自 [crosspoint-reader](https://github.com/crosspoint-reader/crosspoint-reader)（MIT），
+  以 submodule 指向我们的 fork [Dingjinjin-chihiro/crosspoint-reader](https://github.com/Dingjinjin-chihiro/crosspoint-reader) 分支 `emulator-1.0.0`
+  （上游 tag `1.0.0` + 两处修复）；同一修复也以补丁形式放在 `patches/`
 
 ![首页](docs/screenshots/00-window.png)
 
@@ -52,7 +53,7 @@ python scripts\make_sample_epub.py sdcard
 ```
 .
 ├─ CMakeLists.txt / sim/     模拟器源码（SDL2 窗口、虚拟 SD 卡、键盘映射）
-├─ Crosspoint/               固件（git submodule，固定在上游 tag 1.0.0）
+├─ Crosspoint/               固件（git submodule，我们自己的 fork，基于上游 1.0.0）
 ├─ patches/                  我们对固件的两处修复（构建前自动 git apply）
 ├─ third_party/ArduinoJson/  ArduinoJson 7.4.2 单头文件（免装 PlatformIO）
 ├─ sdcard/                   虚拟 SD 卡根目录
@@ -81,7 +82,7 @@ python scripts\make_sample_epub.py sdcard
    在 Windows/MinGW 下稳定触发 `0xC0000005`。改为先拷贝再销毁。
 2. `CrossPointState.h` 补 `#include <cstdint>`（设备端靠 Arduino.h 兜底，宿主构建会报错）。
 
-补丁带完整提交信息（作者/说明），需要的话可以直接 `git am patches/*.patch` 拿去自己的 fork 用。
+`prepare_firmware.cmd` 与 CI 都会先判断补丁是否已应用，重复执行安全。补丁带完整提交信息，也可以 `git am patches/*.patch` 直接打到上游分支。
 
 ## 已验证
 
@@ -93,5 +94,6 @@ EPUB 阅读（章节标题、两端对齐、翻页到下一章）· 阅读菜单
 ## 许可
 
 模拟器与固件均为 MIT。本仓库的分支/修改同样以 MIT 发布，原始版权见 `NOTICE`。
+
 
 
