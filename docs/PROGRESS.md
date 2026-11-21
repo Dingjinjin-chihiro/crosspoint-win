@@ -1,7 +1,7 @@
 # 进度交接：Crosspoint for Windows
 
 > 写给下一个会话。读完这一份就能直接继续，不需要翻聊天记录。
-> 最后更新：2026-11-22 01:5x（本地时区 +08:00）
+> 最后更新：2026-11-22 03:3x（本地时区 +08:00）
 
 ---
 
@@ -279,6 +279,10 @@ Ctrl+S 始终输出面板精确 480×800（走渲染目标）。验证：resize 
 - ✅ **手势面板**（操作面板）：独立窗口 7 个按钮（TAP/DBL/HOLD/四向滑），点按钮即按固定时序
   触发手势（tap 80ms、double 2×80ms、long 700ms、swipe 260ms）；按下即触发（规避 SDL SetCapture 漂移）；
   `emu_touch.ps1` 加 `panel:N` 动作可脚本化验证。实测 7 手势全部命中（含左滑翻页、长按开 ClipSelection）。
+- ✅ **函数级执行追踪**（替代刷真机看日志）：`build_trace.cmd`（`-finstrument-functions` 独立构建）+
+  `sim_trace.cpp` hook（`CROSSPOINT_TRACE=1` → trace.log E/X 记录 + ASLR 锚点）+
+  `scripts/trace_analyze.py`（addr2line 解析 + 调用次数/自耗时/调用树）。实测开机+点 Library ~3.4s
+  出 294 万条记录、3175 个函数。断点调试沿用 gdb/VS Code F5 + tracepoint 配方。详见 DEBUGGING.md 第 8 节。
 - ⏳ 可选：SDL 事件录制/回放（UI 回归）
 - ⏳ 未做：5.2 的固件主题——见 5.2 说明（1-bit 面板无颜色、Lyra 已较精致、无安全可验证的美化点）
 

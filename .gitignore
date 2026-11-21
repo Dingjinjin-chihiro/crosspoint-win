@@ -29,6 +29,8 @@ docs/screenshots/live.png
 screenshots/
 # Generated pagination-benchmark fixture
 sdcard/Benchmark Book.epub
+# Function-call trace output (CROSSPOINT_TRACE=1)
+trace.log
 
 # macOS / IDE
 .DS_Store

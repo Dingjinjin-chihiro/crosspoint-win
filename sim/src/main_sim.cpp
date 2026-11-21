@@ -8,6 +8,7 @@
 #include <SDCardManager.h>
 #include <SdFat.h>
 #include "sim_display.h"
+#include "sim_trace.h"
 
 #include <atomic>
 #include <cctype>
@@ -100,6 +101,10 @@ int main(int argc, char** argv) {
   // instead of sitting in the buffer until it fills or the process exits.
   setvbuf(stdout, nullptr, _IOLBF, 0);
 
+  // Function-call trace (build_trace.cmd + CROSSPOINT_TRACE=1); arm it before
+  // any firmware code runs so the boot is covered too.
+  sim_trace_init();
+
   // Ensure ./sdcard is findable: if run from build/, chdir to project root
   if (access("./sdcard", F_OK) != 0 && access("../sdcard", F_OK) == 0) {
     if (chdir("..") != 0) {
@@ -130,6 +135,7 @@ int main(int argc, char** argv) {
   }
 
   sim_display_shutdown();
+  sim_trace_flush();
   // CrossPoint has a deliberate assert(false) in ActivityManager destructor.
   // Exit without static/global teardown to avoid false-positive crash reports on window close.
   std::_Exit(0);

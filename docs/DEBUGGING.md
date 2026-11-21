@@ -238,6 +238,58 @@ EPUB 载入等间隙一并算进去（例如图书馆的 `GFX Time=1737ms` 其�
 但它是亚毫秒级，无可测提速）；缩略图、首章分页也**不是**热点（开书 ~51ms）。模拟器当前没有值得
 优化的热点，翻页延迟本质是 60Hz 垂直同步的 present 等待。
 
+## 8. 断点调试与执行流程分析（替代刷真机看日志）
+
+目标是「在模拟器里像调试器一样断点 + 分析执行流程」，不用再把固件刷到硬件上读串口。
+
+### 8.1 断点调试
+
+三条路，按顺手程度选：
+
+1. **VS Code F5**：`.vscode/launch.json`（cppdbg + 便携 gdb），断点/单步/调用栈/变量都可用（见第 1 节）。
+2. **gdb CLI**：`gdb --args build-debug/crosspoint_emulator.exe` → `break 函数名` → `run`。
+3. **tracepoint 配方**（断点命中不暂停，自动打调用栈继续跑，收集所有命中点）：
+
+```
+(gdb) break ActivityManager::goToReader
+(gdb) commands
+> silent
+> printf "[BP] goToReader hit\n"
+> bt 8
+> continue
+> end
+(gdb) run
+```
+
+### 8.2 函数级执行追踪（-finstrument-functions）
+
+```bat
+build_trace.cmd                                  & rem 追踪构建（-finstrument-functions + 符号）
+set CROSSPOINT_TRACE=1                           & rem 可选 CROSSPOINT_TRACE_MAX=3000000 / _FILE=路径
+set CROSSPOINT_TOUCH_SCRIPT=wait 1200; tap 232,421; wait 2500
+build-trace\crosspoint_emulator.exe             & rem 跑一段交互，产出 trace.log（E/X 记录）
+
+python scripts\trace_analyze.py trace.log build-trace\crosspoint_emulator.exe ^
+    --top 20 --tree --from 500 --to 700 --dump flow.txt
+```
+
+输出：调用次数 top-N、自耗时 top-N、`--tree` 缩进调用树、`--dump` 解析后的时间线。
+实测（开机 + 点开 Library，~3.4s）：**2,949,120 条记录、3175 个函数**，调用树能清楚看到
+`loop → MappedInputManager::update → HalGPIO::update → readButtonState/touchUpdate → millis`。
+
+**要了解的三个坑**（都已处理，别重踩）：
+
+1. `-finstrument-functions` 不能放 `CMAKE_CXX_FLAGS`——会把 CMake 配置期的编译器测试也插桩，
+   测试程序链接不到 hook 直接失败。要走 `CROSSPOINT_TRACE_BUILD` 选项、只加到 target。
+2. MinGW 的 pthread.h 内联包装（`nanosleep` 等）被插桩后无法内联，变成强符号与
+   `--whole-archive` 的 libwinpthread 冲突——追踪构建链接加 `-Wl,--allow-multiple-definition`，
+   并用 `-O3 -g`（不是 RelWithDebInfo 默认的 `-O2`）。
+3. exe 有 ASLR：trace 头部会写 `# anchor 0x...`（`sim_trace_anchor` 的运行时地址），分析器用它
+   减去 nm 的文件地址得到加载偏移，再把所有地址调回来才交给 addr2line。
+
+代价：全量插桩约慢 10x（开机 2.3s vs 0.2s），trace.log 很大（3M 条 ≈ 58MB），且 std::chrono/tuple
+这类模板噪声多（用 `grep -v std::` 过滤）。追踪构建是独立目录 `build-trace/`，正常构建不受影响。
+
 ---
 
 ## 不能做什么（别被"能跑"误导）

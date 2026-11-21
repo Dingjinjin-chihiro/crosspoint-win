@@ -68,6 +68,7 @@ set(SIM_SOURCES
   sim/src/sim_display.cpp
   sim/src/sim_gpio.cpp
   sim/src/sim_panel.cpp
+  sim/src/sim_trace.cpp
   sim/src/sim_storage.cpp
   sim/src/sim_spi_bus.cpp
   sim/src/arduino_stub.cpp
@@ -279,4 +280,25 @@ target_compile_options(crosspoint_emulator PRIVATE
 # without `override`); the device builds with GCC, which does not warn.
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   target_compile_options(crosspoint_emulator PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-Wno-inconsistent-missing-override>)
+endif()
+
+# The -finstrument-functions trace hooks must not be instrumented themselves, or
+# writing a record would recurse. In a plain build this flag is a no-op.
+set_source_files_properties(sim/src/sim_trace.cpp PROPERTIES COMPILE_OPTIONS "-fno-instrument-functions")
+# freertos_stub.cpp maps FreeRTOS onto pthreads; instrumenting it stops the
+# pthread.h inline wrappers from inlining, so they become strong symbols that
+# clash with --whole-archive libwinpthread at link time.
+set_source_files_properties(sim/src/freertos_stub.cpp PROPERTIES COMPILE_OPTIONS "-fno-instrument-functions")
+
+# Execution-flow tracing (build_trace.cmd turns this on). Applied to the target,
+# NOT CMAKE_CXX_FLAGS: instrumenting the configure-time compiler test would make
+# it fail to link __cyg_profile_func_enter/exit.
+option(CROSSPOINT_TRACE_BUILD "Instrument every function for execution-flow tracing" OFF)
+if(CROSSPOINT_TRACE_BUILD)
+  target_compile_options(crosspoint_emulator PRIVATE -finstrument-functions)
+  # Instrumented copies of the MinGW pthread.h inline wrappers (nanosleep etc.)
+  # cannot inline, so they become out-of-line definitions that clash with the
+  # --whole-archive libwinpthread. The copies are the same code plus the trace
+  # hooks, so taking the first definition is safe. Trace build only.
+  target_link_options(crosspoint_emulator PRIVATE -Wl,--allow-multiple-definition)
 endif()
