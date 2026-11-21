@@ -176,6 +176,40 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\emu_touch.ps1 ^
 `[GFX] Time = N ms from clearScreen to displayBuffer` 是每次刷新的耗时统计，可以直接看出
 某个界面是不是变慢了。注意它包含宿主渲染时间，不等于真机波形时间。
 
+阅读器有更细的 `[ERS] Page render (tiled async)` 分解，能直接区分「固件排版/栅格化」和
+「模拟器上屏」：`bw_render` / `gray_render` 是模拟器的纹理上屏（0-2 ms），`gray_display`
+才是占大头的一项（5-17 ms，主要是垂直同步的 present 等待，不是渲染本身）。
+
+## 7. 性能基准
+
+**可重复基准**（5.3 的第一步）：固定序列 + 大书，用 `CROSSPOINT_TOUCH_SCRIPT` 驱动，
+`scripts/bench_gfx.py` 汇总日志。
+
+```bat
+:: 生成一本足够长、能翻很多页的基准书（派生产物，不入库）
+python scripts\make_bench_book.py "sdcard\Benchmark Book.epub" 5 40
+
+:: 跑固定序列（开书 + 连翻 8 页），stdout 落盘
+set CROSSPOINT_TOUCH_SCRIPT=wait 1200; tap 232,421; wait 3200; tap 147,189; wait 8000; swipe 400,400 100,400 300; wait 1200; swipe 400,400 100,400 300; wait 1200; swipe 400,400 100,400 300; wait 1200; swipe 400,400 100,400 300; wait 1200; swipe 400,400 100,400 300; wait 1200; swipe 400,400 100,400 300; wait 1200; swipe 400,400 100,400 300; wait 1200; swipe 400,400 100,400 300
+build\crosspoint_emulator.exe > build\emu-bench.log 2>&1
+
+:: 汇总
+python scripts\bench_gfx.py build\emu-bench.log
+```
+
+**基线结论（大书 5 章 × 40 段）**
+
+| 指标 | 数值 | 说明 |
+|---|---|---|
+| 模拟器纹理上屏 | `bw_render=0-1ms`、`gray_render=1-2ms` | **不是热点**，逐像素渲染 384K 像素本就 <2ms |
+| 翻页 | 10-23ms/页 | 大头是 `gray_display`（5-17ms，垂直同步 present 等待），不是渲染 |
+| 图书馆首帧 | ~1.7s | 含索引（25ms）+ 每本书的**缩略图生成**（读 EPUB 解析 cover） |
+| 阅读器开书 | ~3.3s（首章） | **首章分页/排版**，之后每页才 ~20ms |
+
+所以 PROGRESS 里列的 `render_bw_to_texture`「热点候选」被基准**证伪**了——不该为它做 SIMD/批量。
+真正的时间花在**固件侧**：缩略图预生成、EPUB 首章分页缓存。这两项在 `Crosspoint/src`（fork 的
+`emulator-latest` 分支），不属于模拟器仓库，要在那边另开分支改，别混进 `main`。
+
 ---
 
 ## 不能做什么（别被"能跑"误导）

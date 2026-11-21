@@ -242,11 +242,29 @@ Ctrl+S 始终输出面板精确 480×800（走渲染目标）。验证：resize 
 - 建议先做**模拟器侧**的观感改进（窗口缩放、整数倍缩放、抗锯齿/灰度映射），再做**固件主题**（颜色/边距/图标）
 - 注意：改固件 UI 属于"我们的 fork"，要在 `emulator-latest` 上另开分支并回推到 fork，别混进 `main`
 
-### 5.3 代码优化
-- 现有可测点：日志 `[GFX] Time`、`[MEM]`（假）、`--build-debug` 下 perf 采样
-- 优化前先补**可重复的基准**：固定 sdcard 内容 + 固定按键序列（用 `upgrade_nav.ps1`），记录 `[GFX]` 时间序列
-- 热点候选：`render_bw_to_texture`（逐像素，可 SIMD/批量）、EPUB 分页缓存、缩略图预生成
-- 红线：不要为了优化改坏 `sim_display` 的旋转映射（`rotX/rotY` 一旦错位，画面会旋转 90°，很难一眼看出）
+### 5.3 代码优化 —— ✅ 基准已补，结论：模拟器渲染不是热点
+
+**做了什么**
+- `scripts/bench_gfx.py`：日志分析器（GFX 时间序列 + 最大间隔 + EPUB/activity 时间线）
+- `scripts/make_bench_book.py`：大书生成器（5 章 × 40 段，够翻页基准用）；顺带修了 `make_sample_epub.py`
+  的硬编码 uuid（否则两本书同 uuid，被图书馆索引判成重复丢掉）
+- `.gitignore` 忽略派生的 `sdcard/Benchmark Book.epub`
+- `docs/DEBUGGING.md` 新增第 7 节：基准怎么跑 + 基线结论
+
+**基线结论（大书，翻 8 页）**
+
+| 指标 | 数值 | 判断 |
+|---|---|---|
+| 模拟器上屏（`bw_render`/`gray_render`） | 0-2 ms | **不是热点**，无需 SIMD/批量 |
+| 翻页 | 10-23 ms/页 | 大头是 `gray_display` 的 vsync present（5-17ms），不是渲染 |
+| 图书馆首帧 | ~1.7 s | 缩略图生成（真热点） |
+| 阅读器开书（首章） | ~3.3 s | 首章分页/排版（真热点） |
+
+**结论**：`render_bw_to_texture` 这个「热点候选」被基准**证伪**，不做优化（避免无意义 churn）。
+真正耗时在**固件侧**的缩略图预生成 + EPUB 首章分页缓存，在 `Crosspoint/src`，属 fork 的
+`emulator-latest` 分支范畴——要在那边另开分支改，别混进 `main`。
+
+**红线（保留）**：不要为了优化改坏 `sim_display` 的旋转映射（`rotX/rotY` 一旦错位，画面会旋转 90°）。
 
 ### 5.4 调试能力增强（用户也提到"能进行调试"）
 - 加 `.vscode/launch.json` + `.vscode/tasks.json`（F5 直接断点），gdb 路径 `tools\msys64\mingw64\bin\gdb.exe`

@@ -6,9 +6,11 @@ import zipfile
 from xml.sax.saxutils import escape
 
 
-def build_epub(path, title, author, chapters):
-    """chapters: list of (chapter_title, [paragraph, ...])"""
-    uuid = "urn:uuid:12345678-1234-4321-8432-1234567890ab"
+def build_epub(path, title, author, chapters, uuid=None):
+    """chapters: list of (chapter_title, [paragraph, ...]); uuid defaults to a
+    fixed value but callers that build a second book must pass a distinct one,
+    or the library index will treat it as a duplicate of the first."""
+    uuid = uuid or "urn:uuid:12345678-1234-4321-8432-1234567890ab"
 
     manifest_items = []
     spine_items = []

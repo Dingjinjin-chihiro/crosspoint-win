@@ -27,6 +27,8 @@ sdcard/.crosspoint/
 docs/screenshots/live.png
 # Runtime captures written by Ctrl+S / the scripted touch runner
 screenshots/
+# Generated pagination-benchmark fixture
+sdcard/Benchmark Book.epub
 
 # macOS / IDE
 .DS_Store
