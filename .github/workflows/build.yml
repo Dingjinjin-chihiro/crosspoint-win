@@ -10,11 +10,17 @@ jobs:
   windows:
     name: Windows (MSYS2 / MinGW-w64)
     runs-on: windows-latest
-    defaults:
-      run:
-        shell: msys2 {0}
 
     steps:
+      # Windows runners default to core.autocrlf=true, which rewrites the
+      # firmware sources to CRLF and makes the patch context mismatch.
+      - name: Disable CRLF conversion before checkout
+        shell: bash
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+          git config --global --get core.autocrlf
+
       - name: Checkout (with firmware submodule)
         uses: actions/checkout@v4
         with:
@@ -37,6 +43,7 @@ jobs:
       # The submodule already carries both fixes; patches only apply when the
       # submodule is pointed back at upstream 1.0.0. Keep this idempotent.
       - name: Apply firmware patches (skipped when already present)
+        shell: msys2 {0}
         run: |
           set -e
           cd "$GITHUB_WORKSPACE/Crosspoint"
@@ -52,6 +59,7 @@ jobs:
           git --no-pager diff --stat
 
       - name: Configure
+        shell: msys2 {0}
         run: |
           cmake -S "$GITHUB_WORKSPACE" -B "$GITHUB_WORKSPACE/build" \
                 -G Ninja \
@@ -59,9 +67,11 @@ jobs:
                 -DCROSSPOINT_ROOT="$GITHUB_WORKSPACE/Crosspoint"
 
       - name: Build
+        shell: msys2 {0}
         run: cmake --build "$GITHUB_WORKSPACE/build" -j "$(nproc)"
 
       - name: Stage runnable bundle
+        shell: msys2 {0}
         run: |
           set -e
           mkdir -p "$GITHUB_WORKSPACE/dist"
@@ -79,4 +89,3 @@ jobs:
           name: crosspoint-emulator-windows
           path: dist/*
           retention-days: 30
-
