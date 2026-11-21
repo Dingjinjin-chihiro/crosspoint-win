@@ -1,4 +1,4 @@
 [submodule "Crosspoint"]
 	path = Crosspoint
 	url = https://github.com/Dingjinjin-chihiro/crosspoint-reader.git
-	branch = emulator-1.0.0
+	branch = emulator-latest

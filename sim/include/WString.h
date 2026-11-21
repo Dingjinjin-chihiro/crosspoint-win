@@ -8,16 +8,14 @@ class String : public Print {
  public:
   String() : s_(), readPos_(0) {}
   String(const char* c) : s_(c ? c : ""), readPos_(0) {}
-  String(const std::string& s) : s_(s), readPos_(0) {}
+  // Explicit: Arduino's String has no std::string constructor, and an implicit one
+  // makes the firmware's String/string_view overload pairs ambiguous.
+  explicit String(const std::string& s) : s_(s), readPos_(0) {}
   String(char c) : s_(1, c), readPos_(0) {}
   String(int n) : s_(std::to_string(n)), readPos_(0) {}
   String(unsigned n) : s_(std::to_string(n)), readPos_(0) {}
   String(long n) : s_(std::to_string(n)), readPos_(0) {}
   String(unsigned long n) : s_(std::to_string(n)), readPos_(0) {}
-  // 64-bit host: size_t is unsigned long long, which is ambiguous among the
-  // narrower integer overloads above. Provide exact-width overloads.
-  String(long long n) : s_(std::to_string(n)), readPos_(0) {}
-  String(unsigned long long n) : s_(std::to_string(n)), readPos_(0) {}
 
   // Stream-like read for ArduinoJson deserializeJson(doc, string)
   int read() {
@@ -49,6 +47,35 @@ class String : public Print {
     size_t p = s_.rfind(s ? s : "");
     return p == std::string::npos ? -1 : static_cast<int>(p);
   }
+  bool reserve(size_t size) {
+    s_.reserve(size);
+    return true;
+  }
+  bool concat(const char* c) {
+    s_ += (c ? c : "");
+    return true;
+  }
+  bool concat(const char* c, size_t len) {
+    if (c) s_.append(c, len);
+    return true;
+  }
+  bool concat(char c) {
+    s_ += c;
+    return true;
+  }
+  bool concat(const String& o) {
+    s_ += o.s_;
+    return true;
+  }
+  void remove(size_t index) {
+    if (index < s_.size()) s_.erase(index);
+  }
+  void remove(size_t index, size_t count) {
+    if (index < s_.size()) s_.erase(index, count);
+  }
+  char charAt(size_t i) const { return i < s_.size() ? s_[i] : 0; }
+  char operator[](size_t i) const { return charAt(i); }
+
   bool equals(const char* o) const { return o && s_ == o; }
   bool equals(const String& o) const { return s_ == o.s_; }
   long toInt() const {
@@ -108,6 +135,17 @@ class String : public Print {
     s_ = s_.substr(start, end == std::string::npos ? std::string::npos : end - start + 1);
   }
 
+  void replace(const char* from, const char* to) {
+    if (!from || !*from) return;
+    const std::string repl = to ? to : "";
+    const std::string needle = from;
+    size_t pos = 0;
+    while ((pos = s_.find(needle, pos)) != std::string::npos) {
+      s_.replace(pos, needle.length(), repl);
+      pos += repl.length();
+    }
+  }
+
   std::string& str() { return s_; }
   const std::string& str() const { return s_; }
 
@@ -164,3 +202,7 @@ inline bool operator!=(const char* a, const String& b) {
 inline bool operator!=(const String& a, const String& b) {
   return a.str() != b.str();
 }
+
+// Nothing ever arrives on the sim's serial input or streams.
+inline String Stream::readStringUntil(char) { return String(); }
+inline String SerialStub::readStringUntil(char) { return String(); }

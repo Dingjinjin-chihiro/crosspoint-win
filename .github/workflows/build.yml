@@ -2,7 +2,7 @@ name: build
 
 on:
   push:
-    branches: [main]
+    branches: [main, latest-firmware]
   pull_request:
   workflow_dispatch:
 
@@ -12,8 +12,8 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      # Windows runners default to core.autocrlf=true, which rewrites the
-      # firmware sources to CRLF and makes the patch context mismatch.
+      # Windows runners default to core.autocrlf=true, which rewrites sources to
+      # CRLF and breaks the firmware's .patch files / patch scripts.
       - name: Disable CRLF conversion before checkout
         shell: bash
         run: |
@@ -34,6 +34,7 @@ jobs:
           update: false
           install: >-
             git
+            patch
             mingw-w64-x86_64-gcc
             mingw-w64-x86_64-cmake
             mingw-w64-x86_64-ninja
@@ -41,14 +42,15 @@ jobs:
             mingw-w64-x86_64-pkgconf
             mingw-w64-x86_64-python
 
-      # The submodule already carries both fixes; patches only apply when the
-      # submodule is pointed back at upstream 1.0.0. Keep this idempotent.
-      - name: Apply firmware patches (skipped when already present)
+      # No patches are needed for the pinned 2.x firmware, but keep the step so a
+      # future fix can just be dropped into patches/.
+      - name: Apply firmware patches (if any)
         shell: msys2 {0}
         run: |
           set -e
           cd "$GITHUB_WORKSPACE/Crosspoint"
           echo "firmware: $(git rev-parse HEAD) ($(git rev-parse --abbrev-ref HEAD))"
+          shopt -s nullglob
           for p in "$GITHUB_WORKSPACE"/patches/*.patch; do
             if git apply --reverse --check "$p" >/dev/null 2>&1; then
               echo "already applied: $(basename "$p")"
@@ -77,11 +79,11 @@ jobs:
           set -e
           mkdir -p "$GITHUB_WORKSPACE/dist"
           cp "$GITHUB_WORKSPACE/build/crosspoint_emulator.exe" "$GITHUB_WORKSPACE/dist/"
-          cp /mingw64/bin/SDL2.dll \
-             /mingw64/bin/libgcc_s_seh-1.dll \
-             /mingw64/bin/libstdc++-6.dll \
-             /mingw64/bin/libwinpthread-1.dll \
-             "$GITHUB_WORKSPACE/dist/"
+          # The build statically links the MinGW runtime; SDL2.dll is what has to ship.
+          cp "$GITHUB_WORKSPACE/build/"*.dll "$GITHUB_WORKSPACE/dist/" 2>/dev/null || true
+          if ! ls "$GITHUB_WORKSPACE/dist/"*.dll >/dev/null 2>&1; then
+            cp /mingw64/bin/SDL2.dll "$GITHUB_WORKSPACE/dist/"
+          fi
           ls -l "$GITHUB_WORKSPACE/dist"
 
       - name: Upload artifact
@@ -90,4 +92,3 @@ jobs:
           name: crosspoint-emulator-windows
           path: dist/*
           retention-days: 30
-

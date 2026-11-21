@@ -5,7 +5,6 @@ setlocal
 
 set "ROOT=%~dp0"
 set "BASH=%ROOT%tools\msys64\usr\bin\bash.exe"
-set "MINGW=%ROOT%tools\msys64\mingw64"
 
 if not exist "%BASH%" (
   echo Toolchain missing: %BASH%
@@ -16,15 +15,18 @@ if not exist "%BASH%" (
 call "%ROOT%prepare_firmware.cmd"
 if errorlevel 1 exit /b 1
 
+REM Image decoders (PNGdec/JPEGDEC/AnimatedGIF) are fetched by CMake on the first
+REM configure. ArduinoJson comes from third_party\, so no download is needed for it.
 "%BASH%" -lc "export PATH=/mingw64/bin:$PATH; export MSYSTEM=MINGW64; ROOT=$(cygpath -u '%ROOT%'); cd \"$ROOT\" || exit 1; cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCROSSPOINT_ROOT=\"$ROOT/Crosspoint\" && cmake --build build -j 8"
 if errorlevel 1 (
   echo Build failed.
   exit /b 1
 )
 
-REM MinGW links the runtime dynamically; ship the DLLs next to the executable.
-for %%d in (SDL2.dll libgcc_s_seh-1.dll libstdc++-6.dll libwinpthread-1.dll) do (
-  copy /y "%MINGW%\bin\%%d" "%ROOT%build\%%d" >nul
+REM CMake copies SDL2.dll next to the executable; this is just a safety net.
+set "MINGW=%ROOT%tools\msys64\mingw64"
+if exist "%MINGW%\bin\SDL2.dll" (
+  if not exist "%ROOT%build\SDL2.dll" copy /y "%MINGW%\bin\SDL2.dll" "%ROOT%build\SDL2.dll" >nul
 )
 
 echo.
