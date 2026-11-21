@@ -21,6 +21,12 @@ Actions are ';'-separated, in client pixels of the 480x800 emulator window:
   fkey:N                press F<N> in the window (1-12); F1..F7 are the gesture
                         hotkeys: move the pointer first, then the emulator
                         delivers that gesture at the pointer with its own timing
+  shot                  trigger the emulator's Ctrl+S (writes screenshots/*.bmp)
+  resize:W,H            resize the window (e.g. 960,1600 for 2x integer scale)
+  ptap:X,Y              tap at PANEL logical pixel (0..479, 0..799): the script
+                        computes the window point through the same integer-scale
+                        + letterbox math the emulator uses, so a ptap at (X,Y)
+                        must land on panel pixel (X,Y) whatever the window size
   wait:MS               pause
 
 Example:
@@ -54,6 +60,7 @@ public class EmuTouch {
   [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extra);
   [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint msg, IntPtr w, IntPtr l);
   [DllImport("user32.dll")] public static extern uint MapVirtualKey(uint code, uint mapType);
+  [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr a, int x, int y, int cx, int cy, uint flags);
   [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
   [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X, Y; }
 }
@@ -140,6 +147,39 @@ foreach ($raw in ($Actions -split ';')) {
         Start-Sleep -Milliseconds ([Math]::Max(1, [int]($ms / $steps)))
       }
       [EmuTouch]::mouse_event($LEFTUP, 0, 0, 0, [UIntPtr]::Zero)
+    }
+    'shot' {
+      # Ctrl+S: SDL derives the Ctrl modifier from key state, so post the control
+      # key down/up around the S.
+      [EmuTouch]::PostMessage($script:hwnd, 0x0100, [IntPtr]0x11, [IntPtr]0x001D0001) | Out-Null
+      Start-Sleep -Milliseconds 30
+      [EmuTouch]::PostMessage($script:hwnd, 0x0100, [IntPtr]0x53, [IntPtr]0x001F0001) | Out-Null
+      Start-Sleep -Milliseconds 30
+      [EmuTouch]::PostMessage($script:hwnd, 0x0101, [IntPtr]0x53, [IntPtr]0xC01F0001) | Out-Null
+      [EmuTouch]::PostMessage($script:hwnd, 0x0101, [IntPtr]0x11, [IntPtr]0xC01D0001) | Out-Null
+      Start-Sleep -Milliseconds 200
+    }
+    'ptap' {
+      $lr = New-Object EmuTouch+RECT
+      [EmuTouch]::GetClientRect($script:hwnd, [ref]$lr) | Out-Null
+      $cw = $lr.Right - $lr.Left
+      $ch = $lr.Bottom - $lr.Top
+      $s = [Math]::Floor([Math]::Min($cw / 480.0, $ch / 800.0))
+      if ($s -lt 1) { $s = 1 }
+      $ox = [int](($cw - 480 * $s) / 2)
+      $oy = [int](($ch - 800 * $s) / 2)
+      $wx = $ox + $args[0] * $s
+      $wy = $oy + $args[1] * $s
+      Set-ClientPoint $wx $wy
+      Start-Sleep -Milliseconds 40
+      [EmuTouch]::mouse_event($LEFTDOWN, 0, 0, 0, [UIntPtr]::Zero)
+      Start-Sleep -Milliseconds 70
+      [EmuTouch]::mouse_event($LEFTUP, 0, 0, 0, [UIntPtr]::Zero)
+    }
+    'resize' {
+      $swp = 0x0002 -bor 0x0004 -bor 0x0040 -bor 0x0010  # NOMOVE|NOZORDER|SHOWWINDOW|NOACTIVATE
+      [EmuTouch]::SetWindowPos($script:hwnd, [IntPtr]::Zero, 0, 0, $args[0], $args[1], $swp) | Out-Null
+      Start-Sleep -Milliseconds 250
     }
     'fkey' {
       # Posted, not sent: the emulator reads gesture hotkeys from its SDL event queue,

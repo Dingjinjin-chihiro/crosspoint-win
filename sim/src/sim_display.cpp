@@ -22,6 +22,16 @@ static const int WINDOW_HEIGHT = static_cast<int>(EInkDisplay::DISPLAY_WIDTH);
 static SDL_Window* g_window = nullptr;
 static SDL_Renderer* g_renderer = nullptr;
 static SDL_Texture* g_texture = nullptr;
+// 480x800 render target used to capture the panel at its exact size no matter
+// how large the window is scaled.
+static SDL_Texture* g_target = nullptr;
+
+// Integer scaling of the 480x800 panel into the (resizable) window. The panel is
+// kept at whole-pixel multiples, centred, with the rest filled as a bezel, so a
+// screenshot coordinate always maps back to a real panel pixel.
+static int g_scale = 1;
+static int g_panelOffX = 0;
+static int g_panelOffY = 0;
 
 namespace {
 // Panel-side output inversion (HalDisplay::setInverted); the framebuffer itself stays normal.
@@ -32,6 +42,39 @@ bool g_hasGrayMsb = false;
 uint8_t g_bwBuffer[EInkDisplay::BUFFER_SIZE];
 uint8_t g_grayLsbBuffer[EInkDisplay::BUFFER_SIZE];
 uint8_t g_grayMsbBuffer[EInkDisplay::BUFFER_SIZE];
+
+void updateViewport() {
+  int ow = 0;
+  int oh = 0;
+  SDL_GetRendererOutputSize(g_renderer, &ow, &oh);
+  int scale = ow / WINDOW_WIDTH;
+  const int scaleH = oh / WINDOW_HEIGHT;
+  if (scaleH < scale) scale = scaleH;
+  if (scale < 1) scale = 1;
+  g_scale = scale;
+  g_panelOffX = (ow - WINDOW_WIDTH * scale) / 2;
+  g_panelOffY = (oh - WINDOW_HEIGHT * scale) / 2;
+}
+
+// Present the panel texture scaled into the window, centred and letterboxed.
+void presentPanel() {
+  updateViewport();
+  SDL_SetRenderDrawColor(g_renderer, 40, 40, 44, 255);  // bezel
+  SDL_RenderClear(g_renderer);
+  const SDL_Rect dst = {g_panelOffX, g_panelOffY, WINDOW_WIDTH * g_scale, WINDOW_HEIGHT * g_scale};
+  SDL_RenderCopy(g_renderer, g_texture, nullptr, &dst);
+  SDL_RenderPresent(g_renderer);
+}
+
+// Map a window (client) pixel back to the 480x800 logical panel pixel it lands
+// on, clamping points on the bezel to the nearest edge -- a finger dragging off
+// the glass ends at the edge, exactly as real hardware reports it.
+void windowToPanelLogical(int winX, int winY, int& lx, int& ly) {
+  const int px = (winX - g_panelOffX) / g_scale;
+  const int py = (winY - g_panelOffY) / g_scale;
+  lx = px < 0 ? 0 : (px >= WINDOW_WIDTH ? WINDOW_WIDTH - 1 : px);
+  ly = py < 0 ? 0 : (py >= WINDOW_HEIGHT ? WINDOW_HEIGHT - 1 : py);
+}
 
 void render_bw_to_texture(const uint8_t* buf) {
   if (!g_renderer || !g_texture || !buf) return;
@@ -65,9 +108,7 @@ void render_bw_to_texture(const uint8_t* buf) {
   }
 
   SDL_UnlockTexture(g_texture);
-  SDL_RenderClear(g_renderer);
-  SDL_RenderCopy(g_renderer, g_texture, nullptr, nullptr);
-  SDL_RenderPresent(g_renderer);
+  presentPanel();
 }
 
 void render_gray_to_texture(const uint8_t* bw, const uint8_t* lsb, const uint8_t* msb) {
@@ -108,9 +149,7 @@ void render_gray_to_texture(const uint8_t* bw, const uint8_t* lsb, const uint8_t
   }
 
   SDL_UnlockTexture(g_texture);
-  SDL_RenderClear(g_renderer);
-  SDL_RenderCopy(g_renderer, g_texture, nullptr, nullptr);
-  SDL_RenderPresent(g_renderer);
+  presentPanel();
 }
 }  // namespace
 
@@ -123,8 +162,11 @@ bool sim_display_init(void) {
   // main() is ours, not SDL_main (main_sim.cpp does not include SDL.h), so tell SDL.
   SDL_SetMainReady();
   if (SDL_Init(SDL_INIT_VIDEO) != 0) return false;
+  // Nearest-neighbour upscaling keeps e-ink pixels crisp instead of blurring them
+  // across a fractional scale; must be set before the renderer is created.
+  SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
   g_window = SDL_CreateWindow("Crosspoint Emulator", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, WINDOW_WIDTH,
-                              WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
+                              WINDOW_HEIGHT, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
   if (!g_window) return false;
   // PRESENTVSYNC: without it, SDL_RenderPresent() can swap mid-scanout,
   // showing a torn frame -- a slice of the previous content at the top of
@@ -136,10 +178,20 @@ bool sim_display_init(void) {
   g_texture = SDL_CreateTexture(g_renderer, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_STREAMING, WINDOW_WIDTH,
                                 WINDOW_HEIGHT);
   if (!g_texture) return false;
+  if (SDL_RenderTargetSupported(g_renderer)) {
+    g_target = SDL_CreateTexture(g_renderer, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_TARGET, WINDOW_WIDTH,
+                                 WINDOW_HEIGHT);
+  }
+  printf("[SIM] render target %s (panel-exact screenshots %s)\n", g_target ? "available" : "unavailable",
+         g_target ? "enabled" : "disabled, window-sized fallback");
   return true;
 }
 
 void sim_display_shutdown(void) {
+  if (g_target) {
+    SDL_DestroyTexture(g_target);
+    g_target = nullptr;
+  }
   if (g_texture) {
     SDL_DestroyTexture(g_texture);
     g_texture = nullptr;
@@ -307,23 +359,40 @@ namespace {
 // firmware for an emulator convenience. Convert afterwards, e.g.
 //   sips -s format png screenshots/*.bmp --out docs/images/screenshots/
 void save_screenshot() {
-  if (!g_renderer) return;
+  if (!g_renderer || !g_texture) return;
 
-  int w = 0, h = 0;
-  SDL_GetRendererOutputSize(g_renderer, &w, &h);
+  // Capture the panel at its exact 480x800. Render the panel texture 1:1 into a
+  // render target so the result is independent of the window's current zoom; if
+  // the driver has no render targets, fall back to the whole (scaled) window.
+  const bool useTarget = g_target != nullptr;
+  int w = WINDOW_WIDTH;
+  int h = WINDOW_HEIGHT;
+  if (useTarget) {
+    SDL_SetRenderTarget(g_renderer, g_target);
+    SDL_SetRenderDrawColor(g_renderer, 255, 255, 255, 255);
+    SDL_RenderClear(g_renderer);
+    SDL_RenderCopy(g_renderer, g_texture, nullptr, nullptr);
+  } else {
+    // Redraw the frame before reading: RenderPresent leaves the backbuffer
+    // undefined, and g_texture still holds the current frame.
+    SDL_GetRendererOutputSize(g_renderer, &w, &h);
+    SDL_RenderClear(g_renderer);
+    SDL_RenderCopy(g_renderer, g_texture, nullptr, nullptr);
+  }
+
   SDL_Surface* surface = SDL_CreateRGBSurfaceWithFormat(0, w, h, 24, SDL_PIXELFORMAT_RGB24);
   if (!surface) {
     printf("[SHOT] surface alloc failed: %s\n", SDL_GetError());
+    if (useTarget) SDL_SetRenderTarget(g_renderer, nullptr);
     return;
   }
-  // Redraw the frame before reading. SDL_RenderPresent swaps buffers and leaves the backbuffer
-  // undefined, so reading it after the last present returns a stale or empty frame -- which is
-  // what the first version of this did. g_texture still holds the current frame, so copy it in,
-  // read, then present again to leave the window as it was.
-  SDL_RenderClear(g_renderer);
-  SDL_RenderCopy(g_renderer, g_texture, nullptr, nullptr);
   const int rc = SDL_RenderReadPixels(g_renderer, nullptr, SDL_PIXELFORMAT_RGB24, surface->pixels, surface->pitch);
-  SDL_RenderPresent(g_renderer);
+  if (useTarget) {
+    SDL_SetRenderTarget(g_renderer, nullptr);
+    presentPanel();  // restore the window exactly as it was
+  } else {
+    SDL_RenderPresent(g_renderer);
+  }
   if (rc != 0) {
     printf("[SHOT] read failed: %s\n", SDL_GetError());
     SDL_FreeSurface(surface);
@@ -358,26 +427,31 @@ bool sim_display_screenshot(void) {
 }
 
 bool sim_display_pump_events(void) {
-  // Pointer input shares this loop: see sim_input.h. The window is not resizable,
-  // but its client size is read every frame so the panel mapping stays exact if
-  // the platform scales it.
-  int clientW = 0;
-  int clientH = 0;
-  if (g_window) SDL_GetWindowSize(g_window, &clientW, &clientH);
+  // Pointer input shares this loop: see sim_input.h. Window pixels are mapped back
+  // onto the 480x800 panel through the same integer-scale/letterbox transform the
+  // presenter uses, so a click lands on the panel pixel under the cursor.
+  updateViewport();
 
   SDL_Event e;
   while (SDL_PollEvent(&e)) {
     if (e.type == SDL_QUIT) return false;
     switch (e.type) {
-      case SDL_MOUSEMOTION:
-        sim_gpio_on_pointer(SIM_POINTER_MOVE, e.motion.x, e.motion.y, clientW, clientH);
+      case SDL_MOUSEMOTION: {
+        int lx = 0;
+        int ly = 0;
+        windowToPanelLogical(e.motion.x, e.motion.y, lx, ly);
+        sim_gpio_on_pointer(SIM_POINTER_MOVE, lx, ly, WINDOW_WIDTH, WINDOW_HEIGHT);
         break;
+      }
       case SDL_MOUSEBUTTONDOWN:
       case SDL_MOUSEBUTTONUP:
         // The emulated panel is single-contact: only the primary button is a finger.
         if (e.button.button == SDL_BUTTON_LEFT) {
-          sim_gpio_on_pointer(e.type == SDL_MOUSEBUTTONDOWN ? SIM_POINTER_DOWN : SIM_POINTER_UP, e.button.x, e.button.y,
-                              clientW, clientH);
+          int lx = 0;
+          int ly = 0;
+          windowToPanelLogical(e.button.x, e.button.y, lx, ly);
+          sim_gpio_on_pointer(e.type == SDL_MOUSEBUTTONDOWN ? SIM_POINTER_DOWN : SIM_POINTER_UP, lx, ly, WINDOW_WIDTH,
+                              WINDOW_HEIGHT);
         }
         break;
       default:

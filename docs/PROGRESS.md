@@ -228,7 +228,15 @@ bool hasHomeKey() const;  bool wasHomeKeyPressed() const;  bool wasHomeKeyTapped
 **验收**：对着 `MappedInputManager` 的 `rowTouch()`/`wasSwipe()` 写 3 个手动场景，截图 + 日志确认，
 然后让 CI 编过（触摸代码路径要进 CI 编译）。
 
-### 5.2 界面美化
+### 5.2 界面美化 —— 模拟器侧 ✅，固件主题待做
+
+**模拟器侧已完成**（本轮）：窗口可缩放 + 整数倍缩放 + 信箱 + 最近邻放大 + 鼠标坐标往返映射 +
+Ctrl+S 始终输出面板精确 480×800（走渲染目标）。验证：resize 到 960×884 后 `ptap` 面板坐标
+`(232,421)` 精确落在 `down (421,247)` 并进入 Library。
+
+**固件主题（颜色/边距/图标）待做**——见下方「改固件 UI 属于我们的 fork」的红线，要在 `emulator-latest` 另开分支。
+
+**当时的建议（保留）**
 - 固件 UI 在 `Crosspoint/src/activities/**` + `freeink-sdk/libs/ui/FreeInkUI`
 - 主题：日志里能看到 `[UI] Using Lyra theme`；`UITheme::getInstance()`
 - 建议先做**模拟器侧**的观感改进（窗口缩放、整数倍缩放、抗锯齿/灰度映射），再做**固件主题**（颜色/边距/图标）
