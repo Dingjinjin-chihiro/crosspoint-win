@@ -1,0 +1,76 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  windows:
+    name: Windows (MSYS2 / MinGW-w64)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+      - name: Checkout (with firmware submodule)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Set up MSYS2 toolchain
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: false
+          install: >-
+            git
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-SDL2
+            mingw-w64-x86_64-pkgconf
+
+      - name: Apply firmware patches
+        run: |
+          set -e
+          cd "$GITHUB_WORKSPACE/Crosspoint"
+          head_sha=$(git rev-parse HEAD)
+          echo "firmware: $head_sha"
+          for p in "$GITHUB_WORKSPACE"/patches/*.patch; do
+            echo "applying $(basename "$p")"
+            git apply "$p"
+          done
+          git --no-pager diff --stat
+
+      - name: Configure
+        run: |
+          cmake -S "$GITHUB_WORKSPACE" -B "$GITHUB_WORKSPACE/build" \
+                -G Ninja \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DCROSSPOINT_ROOT="$GITHUB_WORKSPACE/Crosspoint"
+
+      - name: Build
+        run: cmake --build "$GITHUB_WORKSPACE/build" -j "$(nproc)"
+
+      - name: Stage runnable bundle
+        run: |
+          set -e
+          mkdir -p "$GITHUB_WORKSPACE/dist"
+          cp "$GITHUB_WORKSPACE/build/crosspoint_emulator.exe" "$GITHUB_WORKSPACE/dist/"
+          cp /mingw64/bin/SDL2.dll \
+             /mingw64/bin/libgcc_s_seh-1.dll \
+             /mingw64/bin/libstdc++-6.dll \
+             /mingw64/bin/libwinpthread-1.dll \
+             "$GITHUB_WORKSPACE/dist/"
+          ls -l "$GITHUB_WORKSPACE/dist"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: crosspoint-emulator-windows
+          path: dist/*
+          retention-days: 30
