@@ -3,7 +3,7 @@
 在 Windows 上用 SDL2 窗口运行 [Crosspoint](https://github.com/crosspoint-reader/crosspoint-reader)
 电子书固件，不需要真机、不需要烧录。
 
-> **这是 `latest-firmware` 分支**：固件升级到 **2026‑10‑27（`c9cb1f8d`，2.x 线）**，
+> **这是 `latest-firmware` 分支**：固件跟到上游 **HEAD（2026‑11‑21，`ca1a8c1`）**，
 > 用上游移植 PR #6 的新模拟器内核（C++20、直接复用固件 HAL、FreeInk SDK）。
 > `main` 分支仍保留原版模拟器 + 1.0.0 固件，那套更老但链路完全稳定。
 
@@ -54,7 +54,7 @@ ArduinoJson 已内置在 `third_party/`，不需要下载。
 
 | | `main` | `latest-firmware`（本分支） |
 |---|---|---|
-| 固件 | tag `1.0.0`（2026‑02‑08） | `c9cb1f8d`（2026‑10‑27，2.x） |
+| 固件 | tag `1.0.0`（2026‑02‑08） | **`ca1a8c1`（2026‑11‑21，主干 HEAD）** |
 | 模拟器内核 | 原版（2026‑02‑11，自维护 sim HAL 头文件） | 上游 PR #6 的移植版（直接复用固件 HAL + FreeInk SDK） |
 | 语言标准 | C++17 | C++20 |
 | 固件补丁 | 2 个（cstdint、use‑after-free） | 不需要（上游已修复） |
@@ -69,10 +69,19 @@ ArduinoJson 已内置在 `third_party/`，不需要下载。
 
 ## 关于"最新"
 
-上游主干现在（2026‑11‑21）比本分支固定的 `c9cb1f8d` 还新约 3 周。直接对 HEAD 编译会在 HAL 层失败：
-`HalDisplay` 新增了 `displayBufferAsync` / `lendFrameBufferStorage` / `controllerIdle` /
-`writeGrayscalePlaneStrip` 等接口，`EInkDisplay` 也加了 `getControllerName` 等方法，
-模拟器的 `sim/src/sim_display.cpp` 需要跟着改一轮。这部分是后续工作，不影响本分支可用。
+本分支现在跟的就是上游主干 HEAD（`ca1a8c1`，2026‑11‑21）。为了让模拟器跟上 11 月这轮 HAL 变更，
+sim 层做了这些适配：
+
+- `HalDisplay` 接口对齐 HEAD：去掉 `drawImageTransparent` / `refreshDisplay` / `copyGrayscaleBuffers` /
+  `toggleInverted` 等，新增 `controllerIdle()`，`getController()` 不再依赖未编译的 `BoardConfig::ACTIVE`
+- `EInkDisplay` 补上 `getControllerName` / `getPanelName` / `setReaderRefresh` / `setOverlayFullTone` /
+  `displayRetainedGrayscaleOverlay`
+- `SDCardManager` 增加 `sdTotalBytes()` / `sdUsedBytes()`（存储信息页要用）
+- `HalPowerManager::readBatteryPercentage()`（HEAD 新增的“取一次新鲜读数”）
+- `freeink::hostResolves()`（SecureNet 的 DNS 预检，模拟器永远返回 false）
+- `mbedtls/sha256.h` 换成真正的 SHA‑256 实现（书签 sync id 依赖它稳定）
+
+升级方式：`git -C Crosspoint fetch origin ca1a8c1 && git -C Crosspoint checkout ca1a8c1`，重跑 `build.cmd`。
 
 ## 许可
 

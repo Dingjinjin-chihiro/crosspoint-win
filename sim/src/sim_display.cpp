@@ -244,10 +244,6 @@ void HalDisplay::clearScreen(uint8_t color) const { einkDisplay.clearScreen(colo
 void HalDisplay::drawImage(const uint8_t* d, uint16_t x, uint16_t y, uint16_t w, uint16_t h, bool pm) const {
   einkDisplay.drawImage(d, x, y, w, h, pm);
 }
-void HalDisplay::drawImageTransparent(const uint8_t* d, uint16_t x, uint16_t y, uint16_t w, uint16_t h,
-                                      bool pm) const {
-  einkDisplay.drawImage(d, x, y, w, h, pm);
-}
 void HalDisplay::displayBuffer(RefreshMode mode, bool turnOffScreen) {
   einkDisplay.displayBuffer(static_cast<EInkDisplay::RefreshMode>(mode), turnOffScreen);
 }
@@ -257,10 +253,8 @@ bool HalDisplay::supportsAsyncRefresh() const { return false; }
 void HalDisplay::displayGrayscaleBase(RefreshMode fallback, bool turnOffScreen) {
   einkDisplay.displayGrayscaleBase(static_cast<EInkDisplay::RefreshMode>(fallback), turnOffScreen);
 }
-void HalDisplay::refreshDisplay(RefreshMode mode, bool turnOff) {
-  einkDisplay.refreshDisplay(static_cast<EInkDisplay::RefreshMode>(mode), turnOff);
-}
 void HalDisplay::deepSleep() { einkDisplay.deepSleep(); }
+void HalDisplay::controllerIdle() {}
 void HalDisplay::preconditionGrayscale() { einkDisplay.preconditionGrayscale(); }
 void HalDisplay::preconditionGrayscale(uint16_t x, uint16_t y, uint16_t w, uint16_t h) {
   einkDisplay.preconditionGrayscale(x, y, w, h);
@@ -271,7 +265,6 @@ uint8_t* HalDisplay::lendFrameBufferStorage(uint32_t* sizeOut) {
   return einkDisplay.getFrameBuffer();
 }
 void HalDisplay::returnFrameBufferStorage() { memset(einkDisplay.getFrameBuffer(), 0xFF, BUFFER_SIZE); }
-void HalDisplay::copyGrayscaleBuffers(const uint8_t* l, const uint8_t* m) { einkDisplay.copyGrayscaleBuffers(l, m); }
 void HalDisplay::copyGrayscaleLsbBuffers(const uint8_t* l) { einkDisplay.copyGrayscaleLsbBuffers(l); }
 void HalDisplay::copyGrayscaleMsbBuffers(const uint8_t* m) { einkDisplay.copyGrayscaleMsbBuffers(m); }
 void HalDisplay::cleanupGrayscaleBuffers(const uint8_t* b) { einkDisplay.cleanupGrayscaleBuffers(b); }
@@ -283,17 +276,14 @@ void HalDisplay::writeGrayscalePlaneStrip(bool lsbPlane, const uint8_t* rows, ui
   memcpy(plane + static_cast<size_t>(yStart) * DISPLAY_WIDTH_BYTES, rows, static_cast<size_t>(numRows) * DISPLAY_WIDTH_BYTES);
   (lsbPlane ? g_hasGrayLsb : g_hasGrayMsb) = true;
 }
-bool HalDisplay::supportsStripGrayscale() const { return grayscaleCapabilities().stripUploads; }
 
-HalDisplay::Controller HalDisplay::getController() const { return BoardConfig::ACTIVE.displayController; }
+HalDisplay::Controller HalDisplay::getController() const { return BoardConfig::DisplayController::SSD1677; }
 
 // What the X4's SSD1677 driver reports: overlay grayscale only, and none while inverted.
 HalDisplay::GrayscaleCapabilities HalDisplay::grayscaleCapabilities(GrayscaleMode mode) const {
   if (g_inverted || mode != GrayscaleMode::Overlay) return {};
   return {GrayscaleEncoding::OverlayMasks, GrayscaleBase::Separate, true, true, false};
 }
-bool HalDisplay::supportsAsyncGrayscaleBase() const { return grayscaleCapabilities().asyncBase; }
-bool HalDisplay::combinesGrayscaleBase() const { return grayscaleCapabilities().base == GrayscaleBase::Combined; }
 bool HalDisplay::displayGrayscaleBase(GrayscaleMode mode, RefreshMode fallback, bool turnOffScreen) {
   if (!grayscaleCapabilities(mode).supported()) return false;
   displayGrayscaleBase(fallback, turnOffScreen);
@@ -301,10 +291,6 @@ bool HalDisplay::displayGrayscaleBase(GrayscaleMode mode, RefreshMode fallback, 
 }
 
 void HalDisplay::setInverted(bool inverted) { g_inverted = inverted; }
-bool HalDisplay::toggleInverted() {
-  g_inverted = !g_inverted;
-  return g_inverted;
-}
 bool HalDisplay::isInverted() const { return g_inverted; }
 uint16_t HalDisplay::getDisplayWidth() const { return DISPLAY_WIDTH; }
 uint16_t HalDisplay::getDisplayHeight() const { return DISPLAY_HEIGHT; }

@@ -45,6 +45,14 @@ class EInkDisplay {
   void setCustomLUT(bool enabled, const unsigned char* lutData = nullptr);
   void deepSleep();
 
+  // HEAD's HalDisplay forwards these to the panel driver. The emulator has no
+  // controller to probe and no retained grayscale plane, so they are inert.
+  const char* getControllerName() const { return "sim"; }
+  const char* getPanelName() const { return "sim-800x480"; }
+  void setReaderRefresh(bool) {}
+  void setOverlayFullTone(bool) {}
+  bool displayRetainedGrayscaleOverlay(uint16_t, uint16_t, uint16_t, uint16_t, bool) { return false; }
+
   uint8_t* getFrameBuffer() const { return frameBuffer; }
   void saveFrameBufferAsPBM(const char* filename);
 

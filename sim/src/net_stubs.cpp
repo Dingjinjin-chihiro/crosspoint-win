@@ -14,7 +14,6 @@ SecureClient::~SecureClient() = default;
 
 void SecureClient::setCACert(const char* rootCA) { _rootCA = rootCA; }
 void SecureClient::setInsecure() { _insecure = true; }
-void SecureClient::reserveFullRecord() {}
 int SecureClient::connect(IPAddress, uint16_t) { return 0; }
 int SecureClient::connect(const char*, uint16_t) { return 0; }
 size_t SecureClient::write(uint8_t) { return 0; }
@@ -159,3 +158,10 @@ namespace bookkey {
 bool write(const std::string&, const uint8_t*, size_t, int64_t) { return false; }
 size_t read(const std::string&, uint8_t (&)[MAX_KEY_LEN], int64_t*) { return 0; }
 }  // namespace bookkey
+
+
+// SecureNet's DNS pre-check is compiled on the device; the emulator never opens a
+// socket, so report "does not resolve" and let the connection attempt fail fast.
+namespace freeink {
+bool hostResolves(const char*) { return false; }
+}  // namespace freeink

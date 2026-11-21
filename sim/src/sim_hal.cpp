@@ -49,6 +49,12 @@ void HalPowerManager::startDeepSleep(HalGPIO&, bool) const {
 
 uint16_t HalPowerManager::getBatteryPercentage() const { return 100; }
 
+// HEAD added a 'fresh reading' variant; the emulator is always on mains power.
+bool HalPowerManager::readBatteryPercentage(uint16_t& percent) const {
+  percent = 100;
+  return true;
+}
+
 HalPowerManager::Lock::Lock() : valid(true) {}
 
 HalPowerManager::Lock::~Lock() = default;

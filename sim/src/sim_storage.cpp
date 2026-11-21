@@ -551,3 +551,37 @@ bool SDCardManager::removeDir(const char* path) {
   }
   return sd.rmdir(path);
 }
+
+// ---- reported card capacity ------------------------------------------------
+// The host has no SD card to interrogate; report a plausible 32 GB card and the
+// real on-disk size of sdcard/, which is what the storage screen shows.
+namespace {
+
+uint64_t dirUsedBytes(const std::string& dir) {
+  uint64_t total = 0;
+  DIR* d = opendir(dir.c_str());
+  if (!d) return 0;
+  while (struct dirent* ent = readdir(d)) {
+    const std::string name(ent->d_name);
+    if (name == "." || name == "..") continue;
+    const std::string full = dir + "/" + name;
+    struct stat st;
+    if (stat(full.c_str(), &st) != 0) continue;
+    if (S_ISDIR(st.st_mode)) {
+      total += dirUsedBytes(full);
+    } else {
+      total += static_cast<uint64_t>(st.st_size);
+    }
+  }
+  closedir(d);
+  return total;
+}
+
+}  // namespace
+
+uint64_t SDCardManager::sdTotalBytes() const { return 32ull * 1024 * 1024 * 1024; }
+
+bool SDCardManager::sdUsedBytes(uint64_t& usedBytes) const {
+  usedBytes = dirUsedBytes(FsFile::resolvePath("/"));
+  return true;
+}

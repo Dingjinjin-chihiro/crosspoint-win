@@ -35,6 +35,11 @@ class SDCardManager {
   bool openFileForWrite(const char* moduleName, const String& path, FsFile& file);
   bool removeDir(const char* path);
 
+  // Reported to the firmware's storage-info screen. The host has no card to
+  // query, so report a fixed capacity and the real size of sdcard/.
+  uint64_t sdTotalBytes() const;
+  bool sdUsedBytes(uint64_t& usedBytes) const;
+
   static SDCardManager& getInstance() { return instance; }
 
  private:

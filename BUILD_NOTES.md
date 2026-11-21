@@ -51,25 +51,20 @@
    PNGdec / JPEGDEC / AnimatedGIF 通过 `FetchContent` 下载（约 25 MB）。
    国内网络可以配代理，或预先 `git clone` 到 `build/_deps/*-src` 后再 configure。
 
-## 4. 上游 HEAD 的情况（尚未跟进）
+## 4. 上游 HEAD 的适配（已完成）
 
-2026‑11‑21 的主干（`ca1a8c1`）比本分支新约 3 周，直接编译会在 HAL 层失败：
+本分支现在固定的就是上游 HEAD（ca1a8c1，2026‑11‑21）。这轮适配改了模拟器 sim 层：
 
-```
-lib/hal/HalDisplay.h:19  'const class EInkDisplay' has no member named 'getControllerName'
-lib/hal/HalDisplay.h:21  'const class EInkDisplay' has no member named 'getPanelName'
-lib/hal/HalDisplay.h:23  'class EInkDisplay' has no member named 'setReaderRefresh'
-...
-sim/src/sim_display.cpp  no declaration matches 'void HalDisplay::drawImageTransparent(...)'
-sim/src/net_stubs.cpp    redefinition of 'void freeink::SecureClient::reserveFullRecord()'
-```
+| 文件 | 改动 |
+|---|---|
+| sim/src/sim_display.cpp | 按 HEAD 的 HalDisplay 头重写实现：去掉 drawImageTransparent / efreshDisplay / copyGrayscaleBuffers / supportsStripGrayscale / supportsAsyncGrayscaleBase / combinesGrayscaleBase / 	oggleInverted，新增 controllerIdle()；getController() 直接返回 BoardConfig::DisplayController::SSD1677（不依赖未编译的 BoardConfig::ACTIVE） |
+| sim/include/EInkDisplay.h | 补 getControllerName() / getPanelName() / setReaderRefresh(bool) / setOverlayFullTone(bool) / displayRetainedGrayscaleOverlay(...) |
+| sim/include/SDCardManager.h、sim/src/sim_storage.cpp | 新增 sdTotalBytes()（固定 32 GB）与 sdUsedBytes()（递归统计 sdcard/ 实际占用） |
+| sim/src/sim_hal.cpp | 新增 HalPowerManager::readBatteryPercentage()（恒为 100%） |
+| sim/src/net_stubs.cpp | 删除 SecureClient::reserveFullRecord()（SDK 已内联定义）；新增 reeink::hostResolves()（永远 false，模拟器不开 socket） |
+| sim/include/mbedtls/sha256.h | 换成真正的 SHA‑256（含一次性 mbedtls_sha256()）；书签 sync id 由它派生，必须是稳定哈希 |
 
-需要给 `sim/include/EInkDisplay.h` 补齐 `getControllerName` / `getPanelName` / `setReaderRefresh` /
-`setOverlayFullTone` / `displayRetainedGrayscaleOverlay`，并按新 `HalDisplay` 头重写
-`sim/src/sim_display.cpp` 的 `HalDisplay` 部分（`displayBufferAsync`、`waitRefreshComplete`、
-`lendFrameBufferStorage`、`controllerIdle`、`writeGrayscalePlaneStrip` 等），再修 `net_stubs.cpp`
-的重复定义。属于下一轮工作。
-
+编译验证：275 个目标链接成功；运行验证：首页 → 文件浏览 → 打开 EPUB → 第 1 页（1/2 22%）正常。
 ## 5. 实测记录
 
 - 构建：271 / 295 个目标链接成功，产物 `crosspoint_emulator.exe`（约 10 MB）+ `SDL2.dll`
